@@ -1,0 +1,10 @@
+{
+  "version": 0,
+  "descriptorPath": ".papi/descriptors",
+  "entries": {
+    "stack_template": {
+      "wsUrl": "ws://127.0.0.1:9944",
+      "metadata": ".papi/metadata/stack_template.scale"
+    }
+  }
+}

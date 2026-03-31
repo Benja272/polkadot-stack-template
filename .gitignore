@@ -1,0 +1,40 @@
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+
+# Node
+node_modules/
+dist/
+.parcel-cache/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Chain data
+chain_data/
+/data/
+
+# PAPI generated
+web/.papi/descriptors/
+web/.papi/metadata/
+
+# Hardhat
+contracts/evm/cache/
+contracts/evm/artifacts/
+contracts/evm/typechain-types/
+
+# ink! build artifacts
+contracts/ink/target/

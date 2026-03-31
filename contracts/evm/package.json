@@ -1,0 +1,17 @@
+{
+  "name": "evm-counter",
+  "version": "0.1.0",
+  "description": "Solidity counter contract for Polkadot Stack Template",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "deploy:local": "npx hardhat run scripts/deploy.ts --network local",
+    "deploy:paseo": "npx hardhat run scripts/deploy.ts --network paseo",
+    "test": "npx hardhat test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "typescript": "^5.6.0",
+    "ts-node": "^10.9.0"
+  }
+}

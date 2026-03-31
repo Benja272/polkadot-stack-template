@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  node:
+    image: stack-template-node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "9944:9944"
+      - "30333:30333"
+    volumes:
+      - chain-data:/data
+    command: >
+      polkadot-omni-node
+      --chain=/chain/chain_spec.json
+      --base-path=/data
+      --rpc-external
+      --rpc-cors=all
+      --rpc-port=9944
+      --dev
+
+volumes:
+  chain-data:

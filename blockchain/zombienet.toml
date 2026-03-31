@@ -1,0 +1,24 @@
+[settings]
+timeout = 1000
+
+[relaychain]
+chain = "rococo-local"
+default_command = "polkadot"
+
+  [[relaychain.nodes]]
+  name = "alice"
+  validator = true
+
+  [[relaychain.nodes]]
+  name = "bob"
+  validator = true
+
+[[parachains]]
+id = 1000
+chain = "stack-template-runtime"
+cumulus_based = true
+
+  [parachains.collator]
+  name = "collator-01"
+  command = "polkadot-omni-node"
+  args = ["--dev"]
