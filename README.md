@@ -27,7 +27,7 @@ The same `Counter.sol` compiled two ways:
 
 | | EVM (solc) | PVM (resolc) |
 |---|---|---|
-| **Source** | [`contracts/solidity/Counter.sol`](contracts/solidity/Counter.sol) | Same file |
+| **Source** | `contracts/evm/contracts/Counter.sol` | Same file |
 | **Toolchain** | [`contracts/evm/`](contracts/evm/) - Hardhat + solc | [`contracts/pvm/`](contracts/pvm/) - Hardhat + @parity/resolc |
 | **VM Backend** | REVM (Ethereum-compatible) | PolkaVM (RISC-V) |
 | **Deploy** | `npx hardhat ignition deploy` | `npx hardhat ignition deploy` |
@@ -120,9 +120,8 @@ polkadot-stack-template/
 |   |-- docker-compose.yml    Docker Compose configuration
 |   `-- zombienet.toml        Multi-node test network config
 |-- contracts/
-|   |-- solidity/Counter.sol  Shared Solidity source
-|   |-- evm/                  Hardhat project (solc -> EVM)
-|   `-- pvm/                  Hardhat project (resolc -> PVM)
+|   |-- evm/                  Hardhat project (solc -> EVM) with Counter.sol
+|   `-- pvm/                  Hardhat project (resolc -> PVM) with Counter.sol
 |-- web/                      React + PAPI frontend
 |-- cli/                      subxt Rust CLI
 |-- scripts/                  Dev and deployment scripts

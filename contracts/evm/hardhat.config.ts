@@ -5,10 +5,6 @@ import { vars } from "hardhat/config";
 
 const config: HardhatUserConfig = {
   solidity: "0.8.28",
-  paths: {
-    // Shared Solidity source
-    sources: "../solidity",
-  },
   networks: {
     local: {
       // Local node Ethereum RPC endpoint

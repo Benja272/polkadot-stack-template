@@ -7,10 +7,6 @@ const config: HardhatUserConfig = {
   resolc: {
     version: "1.0.0",
   },
-  paths: {
-    // Shared Solidity source
-    sources: "../solidity",
-  },
   networks: {
     localNode: {
       // Local node Ethereum RPC endpoint (via eth-rpc adapter)
