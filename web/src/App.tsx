@@ -1,14 +1,16 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-
-const navItems = [
-  { path: "/", label: "Home" },
-  { path: "/pallet", label: "Pallet Counter" },
-  { path: "/evm", label: "EVM Contract" },
-  { path: "/pvm", label: "PVM Contract" },
-];
+import { useChainStore } from "./store/chainStore";
 
 export default function App() {
   const location = useLocation();
+  const pallets = useChainStore((s) => s.pallets);
+
+  const navItems = [
+    { path: "/", label: "Home", enabled: true },
+    { path: "/pallet", label: "Pallet Counter", enabled: pallets.templatePallet !== false },
+    { path: "/evm", label: "EVM Contract", enabled: pallets.revive !== false },
+    { path: "/pvm", label: "PVM Contract", enabled: pallets.revive !== false },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -18,19 +20,29 @@ export default function App() {
             Polkadot Stack Template
           </span>
           <div className="flex gap-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                  location.pathname === item.path
-                    ? "bg-pink-600 text-white"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navItems.map((item) =>
+              item.enabled ? (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                    location.pathname === item.path
+                      ? "bg-pink-600 text-white"
+                      : "text-gray-400 hover:text-white hover:bg-gray-800"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <span
+                  key={item.path}
+                  className="px-3 py-1.5 rounded text-sm text-gray-600 cursor-not-allowed"
+                  title="Pallet not available on connected chain"
+                >
+                  {item.label}
+                </span>
+              )
+            )}
           </div>
         </div>
       </nav>
