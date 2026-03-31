@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import PalletPage from "./pages/PalletPage";
 import EvmContractPage from "./pages/EvmContractPage";
 import PvmContractPage from "./pages/PvmContractPage";
+import AccountsPage from "./pages/AccountsPage";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="pallet" element={<PalletPage />} />
           <Route path="evm" element={<EvmContractPage />} />
           <Route path="pvm" element={<PvmContractPage />} />
+          <Route path="accounts" element={<AccountsPage />} />
         </Route>
       </Routes>
     </HashRouter>
