@@ -1,3 +1,4 @@
+use crate::commands::hash_input;
 use alloy::primitives::{Address, FixedBytes};
 use alloy::providers::ProviderBuilder;
 use alloy::signers::local::PrivateKeySigner;
@@ -38,7 +39,14 @@ pub enum ContractAction {
         #[arg(value_parser = ["evm", "pvm"])]
         contract_type: String,
         /// The 0x-prefixed blake2b-256 hash to claim
-        hash: String,
+        #[arg(group = "input")]
+        hash: Option<String>,
+        /// Path to a file (will be hashed with blake2b-256)
+        #[arg(long, group = "input")]
+        file: Option<String>,
+        /// Also upload the file to the Bulletin Chain (IPFS)
+        #[arg(long, requires = "file")]
+        upload: bool,
         /// Signing account (alice, bob, charlie)
         #[arg(long, default_value = "alice")]
         signer: String,
@@ -146,11 +154,20 @@ pub async fn run(
         ContractAction::CreateClaim {
             contract_type,
             hash,
+            file,
+            upload,
             signer,
         } => {
+            let (hash_hex, file_bytes) = hash_input(hash, file.as_deref())?;
+
+            if upload {
+                let bytes = file_bytes.ok_or("--upload requires --file")?;
+                crate::commands::upload_to_bulletin(&bytes).await?;
+            }
+
             let deployments = load_deployments()?;
             let contract_addr = get_contract_address(&deployments, &contract_type)?;
-            let document_hash = parse_hash(&hash)?;
+            let document_hash = parse_hash(&hash_hex)?;
             let wallet = alloy::network::EthereumWallet::from(resolve_signer(&signer)?);
 
             let provider = ProviderBuilder::new()
