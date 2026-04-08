@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useChainStore } from "../store/chainStore";
 import {
 	checkStatementStoreAvailable,
-	dumpStatements,
+	fetchStatements,
 	type DecodedStatement,
 } from "../hooks/useStatementStore";
 
@@ -24,10 +24,10 @@ export default function StatementStorePage() {
 		try {
 			setLoading(true);
 			setError(null);
-			const result = await dumpStatements(wsUrl);
+			const result = await fetchStatements(wsUrl);
 			setStatements(result);
 		} catch (e) {
-			console.error("Failed to dump statements:", e);
+			console.error("Failed to fetch statements:", e);
 			setError(e instanceof Error ? e.message : String(e));
 		} finally {
 			setLoading(false);
@@ -38,7 +38,6 @@ export default function StatementStorePage() {
 		if (!data) return null;
 		try {
 			const text = new TextDecoder("utf-8", { fatal: true }).decode(data);
-			// Only show if it looks like printable text
 			if (/^[\x20-\x7e\t\n\r]+$/.test(text)) return text;
 		} catch {
 			// not valid utf-8
@@ -64,9 +63,10 @@ export default function StatementStorePage() {
 				</p>
 				<div className="bg-gray-900 rounded-lg p-5 border border-gray-800">
 					<p className="text-gray-500 text-sm">
-						The connected node does not expose Statement Store RPCs (
-						<code className="text-gray-400">statement_dump</code>). This requires a
-						node built with the Statement Store RPC extension.
+						The connected node does not expose Statement Store RPCs. In
+						polkadot-sdk stable2512-3, the statement store is only available in
+						non-dev mode (requires a relay chain via Zombienet). See{" "}
+						<code className="text-gray-400">statement-store.md</code> for details.
 					</p>
 				</div>
 			</div>
@@ -148,12 +148,12 @@ export default function StatementStorePage() {
 											</span>
 										</>
 									)}
-									{stmt.expiry !== null && (
+									{stmt.priority !== null && (
 										<>
 											{" "}
-											| Expiry:{" "}
+											| Priority:{" "}
 											<span className="text-gray-300">
-												{stmt.expiry.toString()}
+												{stmt.priority}
 											</span>
 										</>
 									)}

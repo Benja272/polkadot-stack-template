@@ -6,11 +6,11 @@ const FIELD_TAG_AUTH = 0;
 const FIELD_TAG_PLAIN_DATA = 8;
 const PROOF_VARIANT_SR25519 = 0;
 
-// Field discriminants from sp_statement_store::Field
+// Field discriminants from sp_statement_store::Field (stable2512-3)
 const FIELD_AUTHENTICITY_PROOF = 0;
-// const FIELD_DECRYPTION_KEY = 1;
-const FIELD_EXPIRY = 2;
-// const FIELD_CHANNEL = 3;
+const FIELD_DECRYPTION_KEY = 1;
+const FIELD_PRIORITY = 2;
+const FIELD_CHANNEL = 3;
 const FIELD_TOPIC1 = 4;
 const FIELD_TOPIC2 = 5;
 const FIELD_TOPIC3 = 6;
@@ -20,8 +20,6 @@ const FIELD_DATA = 8;
 // Proof variants
 const PROOF_SR25519 = 0;
 const PROOF_ED25519 = 1;
-// const PROOF_SECP256K1 = 2;
-// const PROOF_ON_CHAIN = 3;
 
 const encodeVecU8 = Bytes.enc();
 
@@ -162,7 +160,7 @@ export interface DecodedStatement {
 	dataLength: number;
 	data: Uint8Array | null;
 	topics: string[];
-	expiry: bigint | null;
+	priority: number | null;
 }
 
 function hexToBytes(hex: string): Uint8Array {
@@ -201,12 +199,13 @@ function readVecU8(bytes: Uint8Array, offset: number): { data: Uint8Array; bytes
 	return { data, bytesRead: prefixLen + len };
 }
 
-function readU64LE(bytes: Uint8Array, offset: number): bigint {
-	let val = 0n;
-	for (let i = 0; i < 8; i++) {
-		val |= BigInt(bytes[offset + i]) << BigInt(i * 8);
-	}
-	return val;
+function readU32LE(bytes: Uint8Array, offset: number): number {
+	return (
+		bytes[offset] |
+		(bytes[offset + 1] << 8) |
+		(bytes[offset + 2] << 16) |
+		((bytes[offset + 3] << 24) >>> 0)
+	);
 }
 
 function decodeStatement(encoded: Uint8Array): Omit<DecodedStatement, "hash"> {
@@ -219,7 +218,7 @@ function decodeStatement(encoded: Uint8Array): Omit<DecodedStatement, "hash"> {
 	let data: Uint8Array | null = null;
 	let dataLength = 0;
 	const topics: string[] = [];
-	let expiry: bigint | null = null;
+	let priority: number | null = null;
 
 	for (let i = 0; i < numFields; i++) {
 		const tag = encoded[offset];
@@ -239,13 +238,15 @@ function decodeStatement(encoded: Uint8Array): Omit<DecodedStatement, "hash"> {
 				signer = "0x" + bytesToHex(encoded.slice(offset, offset + 32));
 				offset += 32;
 			} else {
-				// Secp256k1Ecdsa or OnChain — skip remaining encoded bytes conservatively
 				proofType = variant === 2 ? "Secp256k1Ecdsa" : "OnChain";
-				break;
+				break; // can't safely skip variable-length proof variants
 			}
-		} else if (tag === FIELD_EXPIRY) {
-			expiry = readU64LE(encoded, offset);
-			offset += 8;
+		} else if (tag === FIELD_DECRYPTION_KEY || tag === FIELD_CHANNEL) {
+			// Both are fixed [u8; 32]
+			offset += 32;
+		} else if (tag === FIELD_PRIORITY) {
+			priority = readU32LE(encoded, offset);
+			offset += 4;
 		} else if (
 			tag === FIELD_TOPIC1 ||
 			tag === FIELD_TOPIC2 ||
@@ -259,46 +260,109 @@ function decodeStatement(encoded: Uint8Array): Omit<DecodedStatement, "hash"> {
 			data = result.data;
 			dataLength = result.data.length;
 			offset += result.bytesRead;
-		} else if (tag === 1 || tag === 3) {
-			// DecryptionKey or Channel — fixed [u8; 32]
-			offset += 32;
 		} else {
-			// Unknown field — cannot safely skip, stop decoding
-			break;
+			break; // unknown field
 		}
 	}
 
-	return { signer, proofType, data, dataLength, topics, expiry };
+	return { signer, proofType, data, dataLength, topics, priority };
 }
 
 /**
- * Dump all statements from the node's Statement Store via statement_dump RPC.
+ * Fetch all statements from the node via the statement_subscribeStatement
+ * JSON-RPC subscription (the only query method in stable2512-3).
+ *
+ * Opens a WebSocket, subscribes with TopicFilter::Any, collects the initial
+ * batch (batches arrive until `remaining` is 0 or absent), then closes.
  */
-export async function dumpStatements(wsUrl: string): Promise<DecodedStatement[]> {
-	const httpUrl = wsToHttp(wsUrl);
-	const response = await fetch(httpUrl, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			jsonrpc: "2.0",
-			id: 1,
-			method: "statement_dump",
-			params: [],
-		}),
-	});
+export function fetchStatements(wsUrl: string): Promise<DecodedStatement[]> {
+	return new Promise((resolve, reject) => {
+		let ws: WebSocket;
+		try {
+			ws = new WebSocket(wsUrl);
+		} catch (e) {
+			reject(new Error(`Failed to connect: ${e}`));
+			return;
+		}
 
-	const result = await response.json();
-	if (result.error) {
-		throw new Error(
-			`Statement Store error: ${result.error.message}${result.error.data ? ` (${JSON.stringify(result.error.data)})` : ""}`,
-		);
-	}
+		const statements: DecodedStatement[] = [];
+		let subscriptionId: string | null = null;
+		const timeout = setTimeout(() => {
+			ws.close();
+			// Resolve with whatever we collected so far rather than failing
+			resolve(statements);
+		}, 10_000);
 
-	const encodedStatements: string[] = result.result ?? [];
-	return encodedStatements.map((hex) => {
-		const bytes = hexToBytes(hex);
-		const hash = "0x" + bytesToHex(blake2b(bytes, undefined, 32));
-		const decoded = decodeStatement(bytes);
-		return { hash, ...decoded };
+		ws.onopen = () => {
+			// TopicFilter::Any is the first SCALE enum variant — JSON representation: "Any"
+			ws.send(
+				JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "statement_subscribeStatement",
+					params: ["Any"],
+				}),
+			);
+		};
+
+		ws.onmessage = (event) => {
+			const msg = JSON.parse(event.data);
+
+			// Subscription confirmation — save the subscription ID
+			if (msg.id === 1) {
+				if (msg.error) {
+					clearTimeout(timeout);
+					ws.close();
+					reject(new Error(msg.error.message));
+					return;
+				}
+				subscriptionId = msg.result;
+				return;
+			}
+
+			// Subscription notification
+			if (msg.method === "statement_statement" && msg.params?.result) {
+				const evt = msg.params.result;
+				if (evt.event === "newStatements" && evt.data) {
+					const batch: string[] = evt.data.statements ?? [];
+					for (const hex of batch) {
+						const bytes = hexToBytes(hex);
+						const hash = "0x" + bytesToHex(blake2b(bytes, undefined, 32));
+						const decoded = decodeStatement(bytes);
+						statements.push({ hash, ...decoded });
+					}
+
+					// remaining === 0 or absent means initial dump is complete
+					const remaining = evt.data.remaining;
+					if (remaining === undefined || remaining === null || remaining === 0) {
+						clearTimeout(timeout);
+						// Unsubscribe and close
+						if (subscriptionId) {
+							ws.send(
+								JSON.stringify({
+									jsonrpc: "2.0",
+									id: 2,
+									method: "statement_unsubscribeStatement",
+									params: [subscriptionId],
+								}),
+							);
+						}
+						ws.close();
+						resolve(statements);
+					}
+				}
+			}
+		};
+
+		ws.onerror = () => {
+			clearTimeout(timeout);
+			reject(new Error("WebSocket connection failed"));
+		};
+
+		ws.onclose = () => {
+			clearTimeout(timeout);
+			// If we haven't resolved yet, resolve with what we have
+			resolve(statements);
+		};
 	});
 }
