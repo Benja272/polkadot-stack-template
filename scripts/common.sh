@@ -21,6 +21,16 @@ require_command() {
     fi
 }
 
+require_port_free() {
+    local port="$1"
+    if lsof -i :"$port" >/dev/null 2>&1; then
+        echo "ERROR: Port $port is already in use." >&2
+        lsof -i :"$port" 2>/dev/null | head -5 >&2
+        echo "Kill the process above or choose a different port." >&2
+        exit 1
+    fi
+}
+
 build_runtime() {
     cargo build -p stack-template-runtime --release
 }
@@ -106,6 +116,8 @@ start_zombienet_background() {
     require_command zombienet
     require_command polkadot
     require_command polkadot-omni-node
+    require_port_free 9944
+    require_port_free 8545
 
     ZOMBIE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/polkadot-stack-zombienet.XXXXXX")"
     ZOMBIE_LOG="$ZOMBIE_DIR/zombienet.log"
@@ -124,6 +136,7 @@ run_zombienet_foreground() {
     require_command zombienet
     require_command polkadot
     require_command polkadot-omni-node
+    require_port_free 9944
 
     ZOMBIE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/polkadot-stack-zombienet.XXXXXX")"
     ZOMBIE_LOG="$ZOMBIE_DIR/zombienet.log"

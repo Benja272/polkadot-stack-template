@@ -33,8 +33,8 @@ TEST_FILE="$TMP_DIR/statement.txt"
 rpc_ready() {
   curl -s \
     -H "Content-Type: application/json" \
-    -d '{"jsonrpc":"2.0","id":1,"method":"system_chain","params":[]}' \
-    "$HTTP_URL" >/dev/null 2>&1
+    -d '{"jsonrpc":"2.0","id":1,"method":"rpc_methods","params":[]}' \
+    "$HTTP_URL" 2>/dev/null | grep -q '"statement_submit"'
 }
 
 echo "=== Statement Store Smoke Test ==="
@@ -44,6 +44,15 @@ require_command cargo
 require_command curl
 require_command chain-spec-builder
 require_command polkadot-omni-node
+
+# Extract port from RPC_URL and check it's free
+RPC_PORT="$(echo "$RPC_URL" | sed -E 's|.*:([0-9]+)$|\1|')"
+if lsof -i :"$RPC_PORT" >/dev/null 2>&1; then
+  echo "ERROR: Port $RPC_PORT is already in use." >&2
+  lsof -i :"$RPC_PORT" 2>/dev/null | head -5 >&2
+  echo "Kill the process above or set RPC_URL to a different port." >&2
+  exit 1
+fi
 
 echo "[1/6] Building runtime..."
 cargo build -p stack-template-runtime --release
@@ -69,6 +78,7 @@ polkadot-omni-node \
   --no-prometheus \
   --unsafe-force-node-key-generation \
   --rpc-cors all \
+  --rpc-port 9944 \
   --enable-statement-store \
   -- \
   --no-prometheus \
