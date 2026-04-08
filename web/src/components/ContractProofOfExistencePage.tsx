@@ -49,10 +49,8 @@ export default function ContractProofOfExistencePage({
 	defaultAddress,
 }: Props) {
 	const colors = colorMap[accentColor];
-	const { ethRpcUrl, wsUrl } = useChainStore((s) => ({
-		ethRpcUrl: s.ethRpcUrl,
-		wsUrl: s.wsUrl,
-	}));
+	const ethRpcUrl = useChainStore((s) => s.ethRpcUrl);
+	const wsUrl = useChainStore((s) => s.wsUrl);
 	const scopedStorageKey = `${storageKey}:${ethRpcUrl}`;
 	const [contractAddress, setContractAddress] = useState("");
 	const [selectedAccount, setSelectedAccount] = useState(0);
