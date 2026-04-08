@@ -5,7 +5,7 @@
     "stack_template": {
       "wsUrl": "ws://127.0.0.1:9944",
       "metadata": ".papi/metadata/stack_template.scale",
-      "genesis": "0x223e1cf151a057e4d59bbe9da7bab3fdd5fa8cc90983a7d14fca0cb7b10f03e0",
+      "genesis": "0x4545454545454545454545454545454545454545454545454545454545454545",
       "codeHash": "0x29334ab9d42eff3e8115739d186e6c070799332ae0d2ed42abcddd02f37ea970"
     },
     "bulletin": {

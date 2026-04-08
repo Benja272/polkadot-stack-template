@@ -19,13 +19,14 @@ All scripts resolve the repo root automatically, so you can run them from the re
 | `start-local.sh` | Starts the Zombienet-based local network defined by `blockchain/zombienet.toml` using the fixed local ports expected by the repo tooling. | Use this when you want to inspect or work with the relay-chain + parachain network directly, without the contract/frontend setup steps. |
 | `deploy-paseo.sh` | Installs dependencies, compiles, and deploys the EVM and PVM contracts to the Polkadot testnet configuration used by the Hardhat projects. | Use this when you are deploying contract examples to testnet rather than running them locally. Make sure the required `PRIVATE_KEY` values are configured first. |
 | `deploy-frontend.sh` | Builds the frontend and uploads `web/dist` to IPFS using the `w3` CLI, then prints the CID and suggested DotNS follow-up steps. | Use this when you want to publish the frontend as a static deployment. |
+| `start-zombienet-all.sh` | Runs the full stack using Zombienet instead of a single dev node: runtime build, chain-spec generation, contract compilation, Zombienet startup (relay chain + parachain), `eth-rpc`, local contract deployment, CLI build, and frontend startup. | Use this when you need the full local environment with **all features working**, including Statement Store RPCs (which are unavailable in dev mode due to a polkadot-sdk bug). |
+| `test-zombienet.sh` | Starts a Zombienet network, deploys EVM and PVM contracts, and runs automated E2E tests covering pallet PoE, EVM contract PoE, PVM contract PoE, Statement Store submit/dump, combined pallet+statement-store claims, and the `prove` command. Reports pass/fail for each test. | Use this for a comprehensive end-to-end verification of all features before merging or releasing. |
 | `test-statement-store-smoke.sh` | Builds the runtime, starts a temporary local-relay-chain node with Statement Store enabled, verifies the store is initially empty, submits a signed statement through the CLI, and checks that `statement-dump` returns it. | Use this when you want an end-to-end sanity check of the Statement Store integration, especially before merging Statement Store changes. |
 
 ## Notes
 
 - `start-dev.sh`, `start-dev-with-contracts.sh`, `start-all.sh`, and `test-statement-store-smoke.sh` depend on local Rust and node tooling such as `cargo`, `chain-spec-builder`, and `polkadot-omni-node`.
-- `start-local.sh` requires both `polkadot` and `zombienet`.
-- `start-dev-with-contracts.sh` and `start-all.sh` also require `eth-rpc`.
-- `start-local.sh` requires `zombienet`.
+- `start-local.sh` and `start-zombienet-all.sh` require both `polkadot` and `zombienet`.
+- `start-dev-with-contracts.sh`, `start-all.sh`, `start-zombienet-all.sh`, and `test-zombienet.sh` also require `eth-rpc`.
 - `deploy-frontend.sh` requires the `w3` CLI from Web3.Storage.
 - `deploy-paseo.sh` expects the contract deployment credentials to already be configured in the contract projects.

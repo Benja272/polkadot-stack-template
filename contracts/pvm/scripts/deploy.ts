@@ -26,9 +26,27 @@ export const deployments: { evm: string | null; pvm: string | null } = ${JSON.st
 
 async function main() {
 	console.log("Deploying ProofOfExistence (PVM/resolc)...");
-	const poe = await hre.viem.deployContract("ProofOfExistence");
-	console.log(`PVM ProofOfExistence deployed to: ${poe.address}`);
-	updateDeployments("pvm", poe.address);
+
+	const [walletClient] = await hre.viem.getWalletClients();
+	const publicClient = await hre.viem.getPublicClient();
+	const artifact = await hre.artifacts.readArtifact("ProofOfExistence");
+
+	const hash = await walletClient.deployContract({
+		abi: artifact.abi,
+		bytecode: artifact.bytecode as `0x${string}`,
+	});
+
+	const receipt = await publicClient.waitForTransactionReceipt({
+		hash,
+		timeout: 120_000,
+	});
+
+	if (!receipt.contractAddress) {
+		throw new Error(`Deploy tx ${hash} did not create a contract`);
+	}
+
+	console.log(`PVM ProofOfExistence deployed to: ${receipt.contractAddress}`);
+	updateDeployments("pvm", receipt.contractAddress);
 	console.log("Updated deployments.json");
 }
 

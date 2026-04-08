@@ -59,6 +59,11 @@ chmod +x polkadot
 sudo mv polkadot /usr/local/bin/
 ```
 
+**Build from source:**
+```bash
+cargo install --git https://github.com/paritytech/polkadot-sdk --tag polkadot-stable2512-3 polkadot --locked
+```
+
 ### Polkadot Omni Node
 
 The local dev chain runs on `polkadot-omni-node`. **You must use the version matching the SDK release (stable2512-3).**
@@ -81,6 +86,11 @@ chmod +x polkadot-omni-node
 sudo mv polkadot-omni-node /usr/local/bin/
 ```
 
+**Build from source:**
+```bash
+cargo install --git https://github.com/paritytech/polkadot-sdk --tag polkadot-stable2512-3 polkadot-omni-node --locked
+```
+
 ### Ethereum RPC Adapter (eth-rpc)
 
 Bridges Ethereum JSON-RPC (port 8545) to the Substrate node, enabling Hardhat/ethers.js/MetaMask to interact with pallet-revive contracts.
@@ -99,6 +109,11 @@ sudo mv eth-rpc /usr/local/bin/
 curl -L https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512-3/eth-rpc -o eth-rpc
 chmod +x eth-rpc
 sudo mv eth-rpc /usr/local/bin/
+```
+
+**Build from source:**
+```bash
+cargo install --git https://github.com/paritytech/polkadot-sdk --tag polkadot-stable2512-3 pallet-revive-eth-rpc --locked
 ```
 
 Verify:
