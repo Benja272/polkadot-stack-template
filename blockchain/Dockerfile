@@ -9,6 +9,7 @@
 #   cd blockchain && docker build -t stack-template-node .
 #   docker run --rm -p 9944:9944 stack-template-node \
 #     --chain=/chain/chain_spec.json --alice --force-authoring \
-#     --dev-block-time=3000 --rpc-external --rpc-cors=all --rpc-port=9944
+#     --dev-block-time=3000 --rpc-external --rpc-cors=all \
+#     --rpc-methods=unsafe --rpc-port=9944
 FROM docker.io/parity/polkadot-omni-node:stable2512-3
 COPY chain_spec.json /chain/chain_spec.json
