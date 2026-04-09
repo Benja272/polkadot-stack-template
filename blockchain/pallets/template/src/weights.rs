@@ -4,8 +4,8 @@
 //! DATE: 2026-03-31
 //! STEPS: `50`, REPEAT: `20`
 //!
-//! These weights are placeholder estimates. Run benchmarks on your own hardware to get
-//! accurate weights for production:
+//! **NOTE**: These weights are placeholder estimates. Run benchmarks on your own hardware for
+//! accurate production values:
 //!
 //! ```sh
 //! cargo build --release --features runtime-benchmarks
