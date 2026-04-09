@@ -8,19 +8,25 @@ All scripts resolve the repo root automatically, so you can run them from the re
 ./scripts/<script-name>.sh
 ```
 
-The local startup scripts share one port model. By default they use:
+`start-all.sh` is the recommended full local path when you want the chain, contracts, CLI, and frontend working together.
+
+The local startup scripts coordinate the chain, `eth-rpc`, CLI defaults, contract tooling, PAPI refresh, and frontend from shared environment variables.
+
+By default they use:
 
 - Substrate RPC: `ws://127.0.0.1:9944`
 - Ethereum RPC: `http://127.0.0.1:8545`
 - Frontend: `http://127.0.0.1:5173`
 
-To move the full local stack together, prefer:
+To move a second local stack together, prefer:
 
 ```bash
 STACK_PORT_OFFSET=100 ./scripts/start-all.sh
 ```
 
 You can also override individual ports with `STACK_SUBSTRATE_RPC_PORT`, `STACK_ETH_RPC_PORT`, and `STACK_FRONTEND_PORT`.
+
+When you use an offset or explicit port overrides, the frontend dev server, CLI defaults, Hardhat local network, and PAPI refresh follow the active port settings automatically.
 
 ## Script Guide
 

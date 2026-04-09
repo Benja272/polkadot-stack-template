@@ -8,70 +8,39 @@ Students do not need to use every part of this repo. The runtime, pallet, contra
 
 ### Substrate Pallet
 
-A FRAME pallet implementing proof of existence with `create_claim` and `revoke_claim` dispatchables.
+A Polkadot SDK pallet template using FRAME, with a Proof of Existence pallet for creating and revoking claims on-chain.
 
-- **Source**: [`blockchain/pallets/template/`](blockchain/pallets/template/)
-- **Features**: Per-hash storage, events, errors, benchmarks, weights, mock runtime, 11 unit tests
-- **Interact via**: PAPI (frontend), subxt (CLI), or Polkadot.js Apps
+More: [`blockchain/README.md`](blockchain/README.md)
 
 ### Parachain Runtime
 
-A Cumulus-based parachain runtime built on **polkadot-sdk stable2512** with smart contract support.
+A Cumulus-based runtime that wires the pallet together with smart contract support and can be launched locally with `polkadot-omni-node`.
 
-- **Source**: [`blockchain/runtime/`](blockchain/runtime/)
-- **Pallets included**: System, Balances, Aura, Session, Sudo, XCM, pallet-revive, TemplatePallet
-- **pallet-revive**: Enables both EVM and PVM smart contract execution with Ethereum RPC compatibility
-- **Runs locally** via the repo scripts, which start a single local omni-node for day-to-day dev and keep a separate Zombienet flow for relay-chain topology work
+More: [`blockchain/README.md`](blockchain/README.md)
 
-### Solidity Smart Contracts
+### Smart Contracts
 
-The same `ProofOfExistence.sol` compiled two ways:
+The same Proof of Existence example implemented as Solidity contracts for both EVM and PVM targets.
 
-| | EVM (solc) | PVM (resolc) |
-|---|---|---|
-| **Source** | `contracts/evm/contracts/ProofOfExistence.sol` | Same file |
-| **Toolchain** | [`contracts/evm/`](contracts/evm/) - Hardhat + solc + viem | [`contracts/pvm/`](contracts/pvm/) - Hardhat + @parity/resolc + viem |
-| **VM Backend** | REVM (Ethereum-compatible) | PolkaVM (RISC-V) |
-| **Deploy** | `npm run deploy:local` | `npm run deploy:local` |
-
-Both target **Polkadot Hub TestNet** (Chain ID: `420420417`) or your local dev node.
+More: [`contracts/README.md`](contracts/README.md)
 
 ### Frontend
 
-A React + Vite + TypeScript + Tailwind CSS frontend.
+A React web app for interacting with the pallet, contracts, Statement Store, and Bulletin Chain.
 
-- **Source**: [`web/`](web/)
-- **Pallet interaction**: [Polkadot API (PAPI)](https://papi.how/) with sr25519 dev accounts (Alice, Bob, Charlie)
-- **Contract interaction**: [viem](https://viem.sh/) through the eth-rpc proxy with Ethereum dev accounts
-- **Endpoints**: Configurable Substrate WS and Ethereum JSON-RPC endpoints, with local-dev defaults on `localhost` and testnet defaults on hosted deployments
-- **Bulletin Chain**: Optional IPFS upload via the Polkadot Bulletin Chain with clickable IPFS links
-- **Pages**: Home (connection + pallet detection), Pallet PoE, EVM PoE, PVM PoE, Statements, Accounts
-- **State management**: Zustand
+More: [`web/README.md`](web/README.md)
 
 ### CLI
 
-A Rust CLI tool using [subxt](https://github.com/parity-tech/subxt) and [alloy](https://alloy.rs) for chain interaction.
+A Rust command-line tool for chain queries, pallet interactions, contract calls, Statement Store, and Bulletin Chain.
 
-- **Source**: [`cli/`](cli/)
-- **Pallet commands**: `pallet create-claim [hash | --file path] [--upload] [-s signer]`, `revoke-claim`, `get-claim`, `list-claims`
-- **Contract commands**: `contract create-claim <evm|pvm> [hash | --file path] [--upload] [-s signer] [--bulletin-signer signer]`, `revoke-claim`, `get-claim`, `info`
-- **Chain commands**: `chain info`, `chain blocks`, `chain statement-submit --file <path> [--signer alice] [--unsigned]`, `chain statement-dump`
-- **Signers**: Pallet commands accept dev names, mnemonic phrases, or 0x secret seeds. Contract commands accept dev names or 0x Ethereum private keys.
-- **Bulletin Chain**: `--upload` flag uploads files to IPFS via `TransactionStorage.store()`. When using a raw Ethereum private key for contract calls, also pass `--bulletin-signer` for the Substrate-side upload.
+More: [`cli/README.md`](cli/README.md)
 
-### Deployment
+### Local Dev Scripts
 
-- [`scripts/start-all.sh`](scripts/start-all.sh) - Full working local stack: relay chain, collator, Statement Store, contracts, and frontend
-- [`scripts/start-dev.sh`](scripts/start-dev.sh) - Lightweight solo-node runtime/pallet loop (no Statement Store on stable2512-3)
-- [`scripts/start-local.sh`](scripts/start-local.sh) - Relay-backed Zombienet network only
-- [`scripts/start-frontend.sh`](scripts/start-frontend.sh) - Frontend dev server for an already-running chain
-- [`scripts/deploy-paseo.sh`](scripts/deploy-paseo.sh) - Deploy contracts to Polkadot TestNet
-- [`scripts/deploy-frontend.sh`](scripts/deploy-frontend.sh) - Deploy frontend to IPFS
-- [`.github/workflows/deploy-frontend.yml`](.github/workflows/deploy-frontend.yml) - Optional manual CI deploy to IPFS + DotNS
-- [`.github/workflows/deploy-github-pages.yml`](.github/workflows/deploy-github-pages.yml) - CI deploy to GitHub Pages
-- [`docker-compose.yml`](docker-compose.yml) - Full-stack Docker Compose (node + eth-rpc, no Rust required)
-- [`blockchain/Dockerfile`](blockchain/Dockerfile) - Lightweight deployment image (pre-built chain spec)
-- [`blockchain/zombienet.toml`](blockchain/zombienet.toml) - Example Zombienet config; local scripts generate a temp config from the active port settings
+One-command scripts for quickly running the full stack.
+
+More: [`scripts/README.md`](scripts/README.md)
 
 ## Quick Start
 
@@ -88,7 +57,7 @@ cd web && npm install && npm run dev
 # Frontend: http://127.0.0.1:5173
 ```
 
-Only Node.js is needed on the host. The Docker build compiles the Rust runtime and generates the chain spec automatically.
+Only Node.js is needed on the host. The Docker build compiles the Rust runtime and generates the chain spec automatically. See [`contracts/README.md`](contracts/README.md) and [`web/README.md`](web/README.md) for the component-specific follow-up steps.
 
 ### Prerequisites (native)
 
@@ -116,60 +85,13 @@ The repo includes [`.nvmrc`](.nvmrc) and `engines` fields in the JavaScript proj
 
 `start-all.sh` is the recommended full-feature local path. It uses Zombienet under the hood so the Statement Store example works on `polkadot-sdk stable2512-3`.
 
-Want a second local stack or different ports? The local scripts coordinate the chain, `eth-rpc`, CLI, contract tooling, PAPI refresh, and frontend from shared env vars:
+For the solo-node loop, relay-backed network, frontend-only startup, port overrides, or a second local stack, see [`scripts/README.md`](scripts/README.md).
 
-```bash
-STACK_PORT_OFFSET=100 ./scripts/start-all.sh
-# Substrate RPC: ws://127.0.0.1:10044
-# Ethereum RPC:  http://127.0.0.1:8645
-# Frontend:      http://127.0.0.1:5273
-```
+For component-specific next steps, see:
 
-Use `STACK_SUBSTRATE_RPC_PORT`, `STACK_ETH_RPC_PORT`, and `STACK_FRONTEND_PORT` if you want explicit per-service overrides instead of a shared offset.
-
-Or run components individually:
-
-```bash
-# Start just the lightweight solo dev chain
-./scripts/start-dev.sh
-
-# Start a relay-backed local network only
-./scripts/start-local.sh
-
-# In another terminal, start the frontend
-./scripts/start-frontend.sh
-
-# Or use the CLI
-cargo run -p stack-cli -- chain info
-cargo run -p stack-cli -- pallet create-claim --file ./README.md
-cargo run -p stack-cli -- pallet list-claims
-cargo run -p stack-cli -- chain statement-submit --file ./README.md --signer alice
-cargo run -p stack-cli -- chain statement-dump
-```
-
-The solo-node dev script (`start-dev.sh`) generates a local chain spec, then starts a single local omni-node on `ws://127.0.0.1:9944` by default for the fastest runtime/pallet loop. On stable2512-3 it does **not** expose Statement Store RPCs because omni-node dev mode drops the statement-store wiring. Use `./scripts/start-all.sh` when you want the full local stack, or `./scripts/start-local.sh` when you specifically need the relay-backed network.
-
-The frontend keeps `deployments.json` and `web/src/config/deployments.ts` as checked-in stubs. Deploy scripts update both files automatically after a successful contract deployment.
-
-If you want explicit build-time defaults for hosted frontends, copy [`web/.env.example`](web/.env.example) to `web/.env.local` and set `VITE_WS_URL` / `VITE_ETH_RPC_URL`. For local scripted development, `start-all.sh` and `start-frontend.sh` export `VITE_LOCAL_WS_URL` / `VITE_LOCAL_ETH_RPC_URL` automatically so the browser follows the active stack ports.
-
-### Deploy contracts
-
-```bash
-# Recommended full local path
-./scripts/start-all.sh
-
-# Or, against a manually started local node:
-# 1) ./scripts/start-dev.sh
-# 2) eth-rpc --node-rpc-url "${SUBSTRATE_RPC_WS:-ws://127.0.0.1:9944}" --rpc-port "${STACK_ETH_RPC_PORT:-8545}" --rpc-cors all
-# 3) deploy the contracts
-cd contracts/evm && npm install && npm run deploy:local
-cd contracts/pvm && npm install && npm run deploy:local
-
-# Deploy to Polkadot TestNet
-cd contracts/evm && npx hardhat vars set PRIVATE_KEY && npm run deploy:testnet
-cd contracts/pvm && npx hardhat vars set PRIVATE_KEY && npm run deploy:testnet
-```
+- [`contracts/README.md`](contracts/README.md)
+- [`web/README.md`](web/README.md)
+- [`cli/README.md`](cli/README.md)
 
 ### Lint & format
 
@@ -208,30 +130,6 @@ cargo test -p stack-cli
 # Solidity tests (local Hardhat network)
 cd contracts/evm && npx hardhat test
 cd contracts/pvm && npx hardhat test
-```
-
-## Project Structure
-
-```
-polkadot-stack-template/
-|-- blockchain/
-|   |-- runtime/              Parachain runtime (polkadot-sdk stable2512)
-|   |-- pallets/template/     Proof of existence pallet with tests + benchmarks
-|   `-- Dockerfile            Lightweight deployment image
-|   `-- zombienet.toml        Multi-node test network config
-|-- contracts/
-|   |-- evm/                  Hardhat project (solc -> EVM) with ProofOfExistence.sol
-|   `-- pvm/                  Hardhat project (resolc -> PVM) with ProofOfExistence.sol
-|-- web/                      React + PAPI + viem frontend
-|-- cli/                      subxt + alloy Rust CLI
-|-- scripts/                  Dev and deployment scripts
-|-- docs/                     Installation, deployment, and stack guides
-|-- docker/                   Local Docker build definitions
-|-- Cargo.toml                Rust workspace
-|-- rustfmt.toml              Rust formatting (matches polkadot-sdk style)
-|-- .prettierrc               Prettier config for TypeScript + Solidity
-|-- .editorconfig             Editor defaults (tabs, LF, charset)
-`-- rust-toolchain.toml       Pinned Rust version
 ```
 
 ## Documentation
