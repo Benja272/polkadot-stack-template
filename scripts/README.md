@@ -40,9 +40,11 @@ When you use an offset or explicit port overrides, the frontend dev server, CLI 
 | `deploy-frontend.sh` | Builds the frontend and uploads `web/dist` to IPFS using the `w3` CLI, then prints the CID and suggested DotNS follow-up steps. | Use this when you want to publish the frontend as a static deployment. |
 | `test-zombienet.sh` | Starts a Zombienet network, deploys EVM and PVM contracts, and runs automated E2E tests covering pallet PoE, EVM contract PoE, PVM contract PoE, Statement Store submit/dump, combined pallet+statement-store claims, and the `prove` command. Reports pass/fail for each test. | Use this for a comprehensive end-to-end verification of all features before merging or releasing. |
 | `test-statement-store-smoke.sh` | Builds the runtime, starts a temporary Zombienet relay chain + collator with Statement Store enabled, verifies the store is initially empty, submits a signed statement through the CLI, and checks that `statement-dump` returns it. | Use this when you want a focused end-to-end sanity check of the Statement Store integration on the same supported local topology the template documents. |
+| `download-sdk-binaries.sh` | Downloads `polkadot` plus `polkadot-prepare-worker` / `polkadot-execute-worker` (required beside relay `polkadot`), `polkadot-omni-node`, and `eth-rpc` from the stable2512-3 release into `./bin/` (gitignored). | Use this to prefetch SDK binaries, or rely on the same download step from `common.sh` unless disabled. |
 
 ## Notes
 
+- Stack scripts default to **`STACK_DOWNLOAD_SDK_BINARIES=1`**: matching SDK binaries are placed under **`./bin/`** (ignored by git) and preferred over tools elsewhere on `PATH`. Set `STACK_DOWNLOAD_SDK_BINARIES=0` to only use binaries you installed yourself.
 - `start-dev.sh` depends on local Rust and node tooling such as `cargo`, `chain-spec-builder`, and `polkadot-omni-node`.
 - `start-all.sh`, `start-local.sh`, `test-statement-store-smoke.sh`, and `test-zombienet.sh` require both `polkadot` and `zombienet`.
 - `start-all.sh` and `test-zombienet.sh` also require `eth-rpc`.

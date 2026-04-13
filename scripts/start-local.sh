@@ -11,6 +11,9 @@ log_info "Override ports with STACK_PORT_OFFSET or STACK_*_PORT environment vari
 log_info "Typical startup time is 1-3 minutes after the required binaries are installed."
 log_info "Use start-all.sh instead if you want contracts, eth-rpc, and the frontend too."
 echo ""
+
+validate_zombienet_toolchain
+
 echo "[1/3] Building runtime..."
 build_runtime
 echo "[2/3] Generating chain spec..."

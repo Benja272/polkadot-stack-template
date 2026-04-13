@@ -52,6 +52,8 @@ echo ""
 log_info "Testing against $WS_URL and $ETH_URL"
 echo ""
 
+validate_full_external_toolchain
+
 # -----------------------------------------------------------------------
 # Setup
 # -----------------------------------------------------------------------

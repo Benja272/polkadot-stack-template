@@ -37,3 +37,6 @@ contracts/*/artifacts/
 contracts/*/typechain-types/
 contracts/*/ignition/deployments/
 **/chain_spec.json
+
+# Polkadot SDK binaries (downloaded by scripts into repo-local bin/)
+/bin/

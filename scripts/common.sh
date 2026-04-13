@@ -44,6 +44,22 @@ export SUBSTRATE_RPC_WS
 export ETH_RPC_HTTP
 export FRONTEND_URL
 
+# Expected versions for polkadot-sdk stable2512-3 (see README "Key Versions").
+STACK_EXPECTED_POLKADOT_SEMVER="${STACK_EXPECTED_POLKADOT_SEMVER:-1.21.3}"
+STACK_EXPECTED_OMNI_NODE_SEMVER="${STACK_EXPECTED_OMNI_NODE_SEMVER:-1.21.3}"
+STACK_EXPECTED_ETH_RPC_SEMVER="${STACK_EXPECTED_ETH_RPC_SEMVER:-0.12.0}"
+STACK_EXPECTED_CHAIN_SPEC_BUILDER_SEMVER="${STACK_EXPECTED_CHAIN_SPEC_BUILDER_SEMVER:-17.0.0}"
+# zombienet prints bare semver (e.g. 1.3.138); allow any 1.3.x patch.
+STACK_EXPECTED_ZOMBIE_MAJOR_MINOR="${STACK_EXPECTED_ZOMBIE_MAJOR_MINOR:-1.3}"
+# Set to 1 to only check that commands exist (not recommended).
+STACK_SKIP_BINARY_VERSION_CHECK="${STACK_SKIP_BINARY_VERSION_CHECK:-0}"
+
+# Download polkadot / polkadot-omni-node / eth-rpc into a gitignored folder and prepend it on PATH
+# so mismatched global installs (e.g. older ~/.cargo/bin) do not break Zombienet.
+STACK_LOCAL_BIN_DIR="${STACK_LOCAL_BIN_DIR:-$ROOT_DIR/bin}"
+STACK_SDK_RELEASE_TAG="${STACK_SDK_RELEASE_TAG:-polkadot-stable2512-3}"
+STACK_DOWNLOAD_SDK_BINARIES="${STACK_DOWNLOAD_SDK_BINARIES:-1}"
+
 log_info() {
     echo "INFO: $*"
 }
@@ -68,7 +84,7 @@ install_hint() {
             echo "Install with: npm install -g @zombienet/cli"
             ;;
         polkadot|polkadot-omni-node|eth-rpc)
-            echo "See docs/INSTALL.md for the matching stable2512-3 binary install steps."
+            echo "Run ./scripts/download-sdk-binaries.sh to fetch stable2512-3 assets into ./bin/, or see docs/INSTALL.md."
             ;;
         curl)
             echo "Install curl with your system package manager."
@@ -85,6 +101,195 @@ require_command() {
         log_info "$(install_hint "$1")"
         exit 1
     fi
+}
+
+# First X.Y.Z in text (first line only for multi-line --version output).
+first_line_semver() {
+    echo "$1" | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1
+}
+
+stack_sdk_remote_filename() {
+    local tool="$1"
+    case "$(uname -s):$(uname -m)" in
+        Darwin:arm64)
+            printf '%s-aarch64-apple-darwin\n' "$tool"
+            ;;
+        Linux:x86_64)
+            printf '%s\n' "$tool"
+            ;;
+        *)
+            log_error "No prebuilt $tool for $(uname -s) $(uname -m) in ${STACK_SDK_RELEASE_TAG}."
+            log_info "Supported: macOS Apple Silicon (arm64), Linux x86_64. Otherwise build from source (docs/INSTALL.md)."
+            exit 1
+            ;;
+    esac
+}
+
+stack_sdk_expected_semver() {
+    case "$1" in
+        polkadot) printf '%s\n' "$STACK_EXPECTED_POLKADOT_SEMVER" ;;
+        polkadot-prepare-worker | polkadot-execute-worker) printf '%s\n' "$STACK_EXPECTED_POLKADOT_SEMVER" ;;
+        polkadot-omni-node) printf '%s\n' "$STACK_EXPECTED_OMNI_NODE_SEMVER" ;;
+        eth-rpc) printf '%s\n' "$STACK_EXPECTED_ETH_RPC_SEMVER" ;;
+        *)
+            log_error "Internal error: unknown SDK binary: $1"
+            exit 1
+            ;;
+    esac
+}
+
+_ensure_one_sdk_binary() {
+    local name="$1"
+    local dest="$STACK_LOCAL_BIN_DIR/$name"
+    local expected
+    expected="$(stack_sdk_expected_semver "$name")"
+    local need_dl=1
+
+    if [[ -x "$dest" ]]; then
+        if [[ "$STACK_SKIP_BINARY_VERSION_CHECK" == "1" ]]; then
+            need_dl=0
+        else
+            local out ver
+            out="$("$dest" --version 2>&1)" || true
+            ver="$(first_line_semver "$out")"
+            if [[ "$ver" == "$expected" ]]; then
+                need_dl=0
+            elif [[ -z "$ver" && "$name" == polkadot-prepare-worker ]]; then
+                need_dl=0
+            elif [[ -z "$ver" && "$name" == polkadot-execute-worker ]]; then
+                # Workers may not print a semver; keep existing file if present.
+                need_dl=0
+            else
+                log_info "Refreshing $name in $STACK_LOCAL_BIN_DIR (found ${ver:-?}, want $expected)."
+            fi
+        fi
+    fi
+
+    if [[ "$need_dl" -eq 0 ]]; then
+        return 0
+    fi
+
+    local url remote tmp
+    remote="$(stack_sdk_remote_filename "$name")"
+    url="https://github.com/paritytech/polkadot-sdk/releases/download/${STACK_SDK_RELEASE_TAG}/${remote}"
+    tmp="$(mktemp "${TMPDIR:-/tmp}/stack-sdk.XXXXXX")"
+    log_info "Downloading $name ($STACK_SDK_RELEASE_TAG)..."
+    if ! curl -fsSL "$url" -o "$tmp"; then
+        rm -f "$tmp"
+        log_error "Failed to download $name from $url"
+        log_info "Install manually (docs/INSTALL.md) or set STACK_DOWNLOAD_SDK_BINARIES=0 to use binaries on your PATH."
+        exit 1
+    fi
+    chmod +x "$tmp"
+    mv "$tmp" "$dest"
+
+    if [[ "$STACK_SKIP_BINARY_VERSION_CHECK" != "1" ]]; then
+        local out2 ver2
+        out2="$("$dest" --version 2>&1)" || true
+        ver2="$(first_line_semver "$out2")"
+        if [[ -n "$ver2" && "$ver2" != "$expected" ]]; then
+            log_error "Downloaded $name reports version $ver2, expected $expected."
+            exit 1
+        fi
+    fi
+}
+
+# Ensures listed SDK binaries exist under STACK_LOCAL_BIN_DIR and prepends that directory on PATH.
+# Names: polkadot | polkadot-prepare-worker | polkadot-execute-worker | polkadot-omni-node | eth-rpc
+# Relay polkadot requires the two worker binaries beside it on PATH (same release).
+ensure_local_sdk_binaries() {
+    [[ "${STACK_DOWNLOAD_SDK_BINARIES:-1}" == "1" ]] || return 0
+    if [[ "$#" -eq 0 ]]; then
+        return 0
+    fi
+    require_command curl
+    mkdir -p "$STACK_LOCAL_BIN_DIR"
+    local n
+    for n in "$@"; do
+        _ensure_one_sdk_binary "$n"
+    done
+    export PATH="$STACK_LOCAL_BIN_DIR:$PATH"
+}
+
+require_cmd_semver_exact() {
+    local cmd="$1"
+    local expected="$2"
+    local label="${3:-$1}"
+
+    if [[ "$STACK_SKIP_BINARY_VERSION_CHECK" == "1" ]]; then
+        require_command "$cmd"
+        return 0
+    fi
+
+    require_command "$cmd"
+    local out ver
+    out="$("$cmd" --version 2>&1)" || true
+    ver="$(first_line_semver "$out")"
+    if [[ -z "$ver" ]]; then
+        log_error "Could not parse a version from $label ($cmd --version)."
+        log_info "Output was:"
+        echo "$out" >&2
+        exit 1
+    fi
+    if [[ "$ver" != "$expected" ]]; then
+        log_error "$label: expected $expected (polkadot-sdk stable2512-3), found $ver."
+        log_info "Output: $(echo "$out" | head -1)"
+        log_info "$(install_hint "$cmd")"
+        exit 1
+    fi
+}
+
+require_zombienet_cli_version() {
+    if [[ "$STACK_SKIP_BINARY_VERSION_CHECK" == "1" ]]; then
+        require_command zombienet
+        return 0
+    fi
+
+    require_command zombienet
+    local ver
+    ver="$(zombienet version 2>&1 | head -1 | tr -d '\r\n')"
+    if [[ -z "$ver" ]] || [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "Could not parse zombienet CLI version (expected output like 1.3.138)."
+        log_info "Got: '$ver'"
+        log_info "$(install_hint zombienet)"
+        exit 1
+    fi
+    local major_minor
+    major_minor="${ver%.*}"
+    if [[ "$major_minor" != "$STACK_EXPECTED_ZOMBIE_MAJOR_MINOR" ]]; then
+        log_error "zombienet CLI: expected ${STACK_EXPECTED_ZOMBIE_MAJOR_MINOR}.x (see README), found $ver."
+        log_info "$(install_hint zombienet)"
+        exit 1
+    fi
+}
+
+validate_chain_spec_builder_version() {
+    require_cmd_semver_exact chain-spec-builder "$STACK_EXPECTED_CHAIN_SPEC_BUILDER_SEMVER" "chain-spec-builder"
+}
+
+validate_zombienet_node_binaries() {
+    require_cmd_semver_exact polkadot "$STACK_EXPECTED_POLKADOT_SEMVER" "polkadot (relay chain)"
+    require_cmd_semver_exact polkadot-omni-node "$STACK_EXPECTED_OMNI_NODE_SEMVER" "polkadot-omni-node"
+    require_zombienet_cli_version
+}
+
+validate_zombienet_toolchain() {
+    ensure_local_sdk_binaries polkadot polkadot-prepare-worker polkadot-execute-worker polkadot-omni-node
+    validate_chain_spec_builder_version
+    validate_zombienet_node_binaries
+}
+
+validate_full_external_toolchain() {
+    ensure_local_sdk_binaries polkadot polkadot-prepare-worker polkadot-execute-worker polkadot-omni-node eth-rpc
+    validate_chain_spec_builder_version
+    validate_zombienet_node_binaries
+    require_cmd_semver_exact eth-rpc "$STACK_EXPECTED_ETH_RPC_SEMVER" "eth-rpc (pallet-revive-eth-rpc)"
+}
+
+validate_solo_dev_toolchain() {
+    ensure_local_sdk_binaries polkadot-omni-node
+    validate_chain_spec_builder_version
+    require_cmd_semver_exact polkadot-omni-node "$STACK_EXPECTED_OMNI_NODE_SEMVER" "polkadot-omni-node"
 }
 
 require_port_free() {
@@ -181,6 +386,8 @@ build_runtime() {
 }
 
 generate_chain_spec() {
+    validate_chain_spec_builder_version
+
     chain-spec-builder \
         -c "$CHAIN_SPEC" \
         create \
@@ -232,12 +439,55 @@ startup_service_stopped() {
     return 1
 }
 
+# On timeout, zombienet.log is often only Prometheus polling noise; this prints RPC probes and per-node *.log tails.
+dump_zombienet_startup_failure_diagnostics() {
+    if [ -z "${ZOMBIE_DIR:-}" ] || [ ! -d "$ZOMBIE_DIR" ]; then
+        return 0
+    fi
+
+    log_info "Collator RPC probe ($SUBSTRATE_RPC_HTTP) — shows whether the parachain answers and if statement_submit is listed:"
+    local methods header
+    methods="$(curl -sS --max-time 8 -H "Content-Type: application/json" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"rpc_methods","params":[]}' \
+        "$SUBSTRATE_RPC_HTTP" 2>&1)" || methods="(curl failed)"
+    printf '%s\n' "$methods" | head -c 1200 | sed 's/^/  /' || true
+    echo ""
+
+    header="$(curl -sS --max-time 8 -H "Content-Type: application/json" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"chain_getHeader","params":[]}' \
+        "$SUBSTRATE_RPC_HTTP" 2>&1)" || header="(curl failed)"
+    log_info "chain_getHeader (first ~800 chars) — need block number > 0 for scripts to proceed:"
+    printf '%s\n' "$header" | head -c 800 | sed 's/^/  /' || true
+    echo ""
+
+    local found
+    found="$(find "$ZOMBIE_DIR" -type f -name '*.log' 2>/dev/null | head -25)"
+    if [ -z "$found" ]; then
+        log_info "No *.log files found under $ZOMBIE_DIR yet."
+        log_info "List temp dir before exit: ls -laR \"$ZOMBIE_DIR\""
+        return 0
+    fi
+    log_info "Per-node log tails (most useful for relay/collator errors):"
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        log_info "--- $f ---"
+        tail -n 40 "$f" 2>/dev/null || true
+    done <<EOF
+$found
+EOF
+}
+
 wait_for_substrate_rpc() {
     local startup_log
     startup_log="$(startup_log_path)"
 
     log_info "Waiting for local node RPCs..."
-    local max_wait="${STACK_RPC_TIMEOUT:-180}"
+    local max_wait
+    if [ -n "${ZOMBIE_PID:-}" ]; then
+        max_wait="${STACK_RPC_TIMEOUT:-600}"
+    else
+        max_wait="${STACK_RPC_TIMEOUT:-180}"
+    fi
     for _ in $(seq 1 "$max_wait"); do
         if [ -n "$NODE_PID" ] && basic_substrate_rpc_ready && substrate_block_producing; then
             log_info "Node ready at $SUBSTRATE_RPC_WS"
@@ -249,6 +499,12 @@ wait_for_substrate_rpc() {
         fi
         if startup_service_stopped; then
             log_error "Local node stopped during startup."
+            if [ -n "${ZOMBIE_DIR:-}" ]; then
+                if [ -d "${ZOMBIE_DIR}/logs" ]; then
+                    log_info "If Zombienet reported [alice]/[bob] metric timeouts, open $ZOMBIE_DIR/logs and read the relay validator logs for those nodes."
+                fi
+                log_info "Relay binary must be polkadot ${STACK_EXPECTED_POLKADOT_SEMVER} from stable2512-3 (./scripts/download-sdk-binaries.sh installs into ./bin/)."
+            fi
             if [ -n "$startup_log" ] && [ -f "$startup_log" ]; then
                 log_info "Recent log output:"
                 tail -n 100 "$startup_log" || true
@@ -258,10 +514,19 @@ wait_for_substrate_rpc() {
         sleep 1
     done
 
-    log_error "Local node RPCs did not become ready in time."
+    log_error "Local node RPCs did not become ready in time (${max_wait}s)."
+    log_info "Needed: parachain RPC with Statement Store (statement_submit) and at least one block."
+    if [ -n "${ZOMBIE_PID:-}" ]; then
+        log_info "Zombienet default wait is 600s; increase with STACK_RPC_TIMEOUT=1200 if the relay is still registering."
+    else
+        log_info "Increase wait with STACK_RPC_TIMEOUT=600 if the node is slow to produce blocks."
+    fi
+    if [ -n "${ZOMBIE_PID:-}" ]; then
+        dump_zombienet_startup_failure_diagnostics
+    fi
     if [ -n "$startup_log" ] && [ -f "$startup_log" ]; then
-        log_info "Recent log output:"
-        tail -n 100 "$startup_log" || true
+        log_info "Zombienet orchestrator log tail (often only metrics polling; see per-node logs above):"
+        tail -n 40 "$startup_log" || true
     fi
     return 1
 }
@@ -385,9 +650,7 @@ export_frontend_runtime_env() {
 }
 
 start_zombienet_background() {
-    require_command zombienet
-    require_command polkadot
-    require_command polkadot-omni-node
+    validate_zombienet_node_binaries
     validate_zombienet_ports
 
     ZOMBIE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/polkadot-stack-zombienet.XXXXXX")"
@@ -408,7 +671,7 @@ start_zombienet_background() {
 }
 
 start_local_node_background() {
-    require_command polkadot-omni-node
+    require_cmd_semver_exact polkadot-omni-node "$STACK_EXPECTED_OMNI_NODE_SEMVER" "polkadot-omni-node"
     require_port_free "$STACK_SUBSTRATE_RPC_PORT"
 
     NODE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/polkadot-stack-node.XXXXXX")"
@@ -431,7 +694,7 @@ start_local_node_background() {
 }
 
 run_local_node_foreground() {
-    require_command polkadot-omni-node
+    require_cmd_semver_exact polkadot-omni-node "$STACK_EXPECTED_OMNI_NODE_SEMVER" "polkadot-omni-node"
     require_port_free "$STACK_SUBSTRATE_RPC_PORT"
 
     polkadot-omni-node \
@@ -448,9 +711,7 @@ run_local_node_foreground() {
 }
 
 run_zombienet_foreground() {
-    require_command zombienet
-    require_command polkadot
-    require_command polkadot-omni-node
+    validate_zombienet_node_binaries
     validate_zombienet_ports
 
     ZOMBIE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/polkadot-stack-zombienet.XXXXXX")"
@@ -472,7 +733,8 @@ run_zombienet_foreground() {
 }
 
 start_eth_rpc_background() {
-    require_command eth-rpc
+    ensure_local_sdk_binaries eth-rpc
+    require_cmd_semver_exact eth-rpc "$STACK_EXPECTED_ETH_RPC_SEMVER" "eth-rpc (pallet-revive-eth-rpc)"
     require_port_free "$STACK_ETH_RPC_PORT"
 
     local eth_rpc_log

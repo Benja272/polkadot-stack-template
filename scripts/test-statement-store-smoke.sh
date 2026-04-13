@@ -23,10 +23,8 @@ echo ""
 
 require_command cargo
 require_command curl
-require_command chain-spec-builder
-require_command polkadot
-require_command polkadot-omni-node
-require_command zombienet
+
+validate_zombienet_toolchain
 
 echo "[1/6] Building runtime..."
 build_runtime

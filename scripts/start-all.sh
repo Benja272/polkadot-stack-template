@@ -33,6 +33,7 @@ log_info "First run can take 5-10 minutes because it installs npm dependencies,"
 log_info "compiles contracts, and waits for the relay-backed network to come up."
 echo ""
 
+validate_full_external_toolchain
 validate_full_stack_ports
 
 echo "[1/8] Building runtime..."

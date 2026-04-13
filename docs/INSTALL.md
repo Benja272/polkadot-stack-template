@@ -60,18 +60,26 @@ Download the prebuilt binary for your platform from:
 
 https://github.com/paritytech/polkadot-sdk/releases/tag/polkadot-stable2512-3
 
+The relay **`polkadot`** binary also needs **`polkadot-prepare-worker`** and **`polkadot-execute-worker`** from the **same** release, installed **next to** `polkadot` (same directory on `PATH`). Without them, validators log that worker binaries could not be found. The template’s `./scripts/download-sdk-binaries.sh` fetches all three into `./bin/`.
+
 **macOS (Apple Silicon):**
 ```bash
-curl -L https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512-3/polkadot-aarch64-apple-darwin -o polkadot
-chmod +x polkadot
-sudo mv polkadot /usr/local/bin/
+REL="https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512-3"
+for f in polkadot polkadot-prepare-worker polkadot-execute-worker; do
+  curl -L "$REL/${f}-aarch64-apple-darwin" -o "$f"
+  chmod +x "$f"
+done
+sudo mv polkadot polkadot-prepare-worker polkadot-execute-worker /usr/local/bin/
 ```
 
 **Linux (x86_64):**
 ```bash
-curl -L https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512-3/polkadot -o polkadot
-chmod +x polkadot
-sudo mv polkadot /usr/local/bin/
+REL="https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512-3"
+for f in polkadot polkadot-prepare-worker polkadot-execute-worker; do
+  curl -L "$REL/$f" -o "$f"
+  chmod +x "$f"
+done
+sudo mv polkadot polkadot-prepare-worker polkadot-execute-worker /usr/local/bin/
 ```
 
 **Build from source:**

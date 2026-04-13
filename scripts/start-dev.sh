@@ -12,6 +12,8 @@ log_info "Typical startup time is under 2 minutes once Rust dependencies are bui
 log_info "Statement Store is intentionally unavailable in this solo-node mode."
 echo ""
 
+validate_solo_dev_toolchain
+
 # Build the runtime
 echo "[1/3] Building runtime..."
 build_runtime
