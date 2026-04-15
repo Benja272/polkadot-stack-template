@@ -11,6 +11,8 @@
     "test": "npx hardhat test",
     "deploy:local": "npx hardhat run scripts/deploy.ts --network local",
     "deploy:testnet": "npx hardhat run scripts/deploy.ts --network polkadotTestnet",
+    "deploy-market:local": "npx hardhat run scripts/deploy-market.ts --network local",
+    "deploy-market:testnet": "npx hardhat run scripts/deploy-market.ts --network polkadotTestnet",
     "fmt": "prettier --write 'contracts/**/*.sol' 'scripts/**/*.ts' 'test/**/*.ts' hardhat.config.ts",
     "fmt:check": "prettier --check 'contracts/**/*.sol' 'scripts/**/*.ts' 'test/**/*.ts' hardhat.config.ts"
   },

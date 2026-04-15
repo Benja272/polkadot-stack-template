@@ -138,6 +138,15 @@ cd web && npm run lint
 cd contracts/pvm && npm run fmt
 ```
 
+## Commit & CI Rules
+
+**Always before committing**: the git pre-commit hook (`.git/hooks/pre-commit`) auto-formats
+staged `.ts`, `.tsx`, `.sol` files with prettier and re-stages them. It only touches files
+already staged — safe to use with partial commits.
+
+**Always after pushing**: run `gh run list --limit 5` to check CI status. Fix failures before
+moving on. CI runs: `ci-web` (lint + fmt + tsc), `ci-pvm` (fmt + compile + test), `ci-rust`.
+
 ---
 
 ## Running Locally
