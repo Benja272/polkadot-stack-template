@@ -1,5 +1,5 @@
 use crate::commands::rpc_call;
-use alloy::primitives::{utils::format_ether, U256};
+use alloy::primitives::{keccak256, utils::format_ether, U256};
 use clap::Subcommand;
 
 #[derive(Subcommand)]
@@ -16,6 +16,44 @@ pub async fn run(action: TxAction, eth_rpc_url: &str) -> Result<(), Box<dyn std:
         TxAction::Inspect { hash } => inspect(&hash, eth_rpc_url).await?,
     }
     Ok(())
+}
+
+/// Map a 0x-prefixed topic[0] hex string to a human-readable event name.
+/// Returns None for unknown selectors.
+fn decode_event_name(topic0: &str) -> Option<&'static str> {
+    // Known events: (canonical signature, label)
+    const KNOWN: &[(&str, &str)] = &[
+        (
+            "ListingCreated(address,uint256,bytes32,uint256)",
+            "MedicalMarket.ListingCreated",
+        ),
+        (
+            "OrderPlaced(uint256,uint256,address,uint256)",
+            "MedicalMarket.OrderPlaced",
+        ),
+        (
+            "SaleConfirmed(uint256,uint256,address,address)",
+            "MedicalMarket.SaleConfirmed",
+        ),
+        (
+            "ListingCancelled(uint256,address)",
+            "MedicalMarket.ListingCancelled",
+        ),
+        ("ProofSubmitted(address,bytes32)", "ProofOfExistence.ProofSubmitted"),
+        ("Transfer(address,address,uint256)", "ERC20.Transfer"),
+        ("Approval(address,address,uint256)", "ERC20.Approval"),
+    ];
+
+    let topic_bytes = topic0.trim_start_matches("0x");
+
+    for (sig, label) in KNOWN {
+        let selector = keccak256(sig.as_bytes());
+        let selector_hex = hex::encode(selector);
+        if selector_hex == topic_bytes {
+            return Some(label);
+        }
+    }
+    None
 }
 
 fn hex_to_u64(v: &serde_json::Value) -> u64 {
@@ -102,7 +140,6 @@ async fn inspect(hash: &str, eth_rpc_url: &str) -> Result<(), Box<dyn std::error
                 .get("address")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
-            println!("[{i}] address: {address}");
 
             let no_topics: Vec<serde_json::Value> = vec![];
             let topics = log
@@ -110,11 +147,28 @@ async fn inspect(hash: &str, eth_rpc_url: &str) -> Result<(), Box<dyn std::error
                 .and_then(|v| v.as_array())
                 .unwrap_or(&no_topics);
 
+            // Try to resolve the event name from topic[0]
+            let event_label = topics
+                .first()
+                .and_then(|t| t.as_str())
+                .and_then(decode_event_name)
+                .unwrap_or("");
+
+            if event_label.is_empty() {
+                println!("[{i}] address: {address}");
+            } else {
+                println!("[{i}] {event_label}  address: {address}");
+            }
+
             if !topics.is_empty() {
                 println!("    topics:");
                 for (j, topic) in topics.iter().enumerate() {
                     let topic_str = topic.as_str().unwrap_or("0x");
-                    println!("      [{j}] {topic_str}");
+                    if j == 0 {
+                        println!("      [{j}] {topic_str}  (selector)");
+                    } else {
+                        println!("      [{j}] {topic_str}");
+                    }
                 }
             }
 
@@ -122,7 +176,9 @@ async fn inspect(hash: &str, eth_rpc_url: &str) -> Result<(), Box<dyn std::error
                 .get("data")
                 .and_then(|v| v.as_str())
                 .unwrap_or("0x");
-            println!("    data: {data}");
+            if data != "0x" && !data.is_empty() {
+                println!("    data: {data}");
+            }
         }
     }
 

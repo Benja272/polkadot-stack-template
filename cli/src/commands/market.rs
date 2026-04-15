@@ -178,8 +178,9 @@ pub async fn run(
 			println!("Price:          {} ETH", format_ether(result.price));
 			println!("Patient:        {}", result.patient);
 			println!("Status:         {status}");
-			if result.active && pending_order_id != u64::MAX {
-				println!("Pending order:  #{pending_order_id}");
+			if result.active && pending_order_id != 0 {
+				// pending_order_id is 1-based from the contract; convert to 0-based
+				println!("Pending order:  #{}", pending_order_id - 1);
 			}
 		},
 
@@ -322,9 +323,8 @@ pub async fn run(
 fn listing_status(active: bool, pending_order_id: u64) -> &'static str {
 	if !active {
 		"Inactive"
-	} else if pending_order_id == u64::MAX {
-		// u64::MAX means try_into failed, meaning the value was 0 (no pending order at index 0)
-		// We use 0 as "no pending order" sentinel — see contract logic
+	} else if pending_order_id == 0 {
+		// Contract stores pending order as 1-based (0 = no pending order)
 		"Active (no order)"
 	} else {
 		"Active (order pending)"
