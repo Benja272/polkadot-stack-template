@@ -293,8 +293,11 @@ export async function fetchStatements(wsUrl: string): Promise<DecodedStatement[]
 	const encoded: string[] = result.result ?? [];
 	return encoded.map((hex) => {
 		const bytes = hexToBytes(hex);
-		const hash = "0x" + bytesToHex(blake2b(bytes, undefined, 32));
 		const decoded = decodeStatement(bytes);
+		// Hash the raw data payload — matches PatientDashboard.computeBlake2bHex(fileBytes)
+		// which is what gets stored on-chain as the listing's statementHash.
+		const hashSource = decoded.data ?? bytes;
+		const hash = "0x" + bytesToHex(blake2b(hashSource, undefined, 32));
 		return { hash, ...decoded };
 	});
 }
