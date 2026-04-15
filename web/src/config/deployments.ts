@@ -3,5 +3,5 @@ export const deployments: { evm: string | null; pvm: string | null; medicalMarke
 	{
 		evm: "0xc01ee7f10ea4af4673cfff62710e1d7792aba8f3",
 		pvm: "0x970951a12f975e6762482aca81e57d5a2a4e73f4",
-		medicalMarket: null,
+		medicalMarket: "0x3ed62137c5db927cb137c26455969116bf0c23cb",
 	};

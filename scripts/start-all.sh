@@ -66,6 +66,10 @@ echo "  Deploying ProofOfExistence via PVM (resolc)..."
 cd "$ROOT_DIR/contracts/pvm"
 npm run deploy:local
 
+echo "  Deploying MedicalMarket via PVM (resolc)..."
+cd "$ROOT_DIR/contracts/pvm"
+npm run deploy-market:local
+
 cd "$ROOT_DIR"
 
 echo "[7/8] Building CLI..."
