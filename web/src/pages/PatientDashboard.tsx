@@ -1,12 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { type Address, parseEther, formatEther } from "viem";
 import { blake2b } from "blakejs";
-import {
-	medicalMarketAbi,
-	evmDevAccounts,
-	getPublicClient,
-	getWalletClient,
-} from "../config/evm";
+import { medicalMarketAbi, evmDevAccounts, getPublicClient, getWalletClient } from "../config/evm";
 import { deployments } from "../config/deployments";
 import { submitToStatementStore, checkStatementStoreAvailable } from "../hooks/useStatementStore";
 import { getDevKeypair } from "../hooks/useAccount";
@@ -36,8 +31,7 @@ export default function PatientDashboard() {
 
 	const storageKey = `medical-market-address:${ethRpcUrl}`;
 
-	const defaultAddress =
-		(deployments as Record<string, string | null>).medicalMarket ?? null;
+	const defaultAddress = (deployments as Record<string, string | null>).medicalMarket ?? null;
 
 	const [contractAddress, setContractAddress] = useState("");
 	const [selectedAccount, setSelectedAccount] = useState(0);
@@ -369,9 +363,7 @@ export default function PatientDashboard() {
 				{txStatus && (
 					<p
 						className={`text-sm font-medium ${
-							txStatus.startsWith("Error")
-								? "text-accent-red"
-								: "text-accent-green"
+							txStatus.startsWith("Error") ? "text-accent-red" : "text-accent-green"
 						}`}
 					>
 						{txStatus}

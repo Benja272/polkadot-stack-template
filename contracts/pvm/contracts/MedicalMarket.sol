@@ -139,11 +139,7 @@ contract MedicalMarket {
 	/// @return active Whether the listing is still open.
 	function getListing(
 		uint256 id
-	)
-		external
-		view
-		returns (bytes32 statementHash, uint256 price, address patient, bool active)
-	{
+	) external view returns (bytes32 statementHash, uint256 price, address patient, bool active) {
 		Listing storage l = listings[id];
 		return (l.statementHash, l.price, l.patient, l.active);
 	}

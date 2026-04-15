@@ -63,7 +63,7 @@ export default function HomePage() {
 
 	return (
 		<div className="space-y-8 animate-fade-in">
-				{/* Hero */}
+			{/* Hero */}
 			<div className="space-y-3">
 				<h1 className="page-title">
 					Medical Data{" "}
@@ -72,9 +72,9 @@ export default function HomePage() {
 					</span>
 				</h1>
 				<p className="text-text-secondary text-base leading-relaxed max-w-2xl">
-					A decentralized ZK marketplace for verified health data on Polkadot. Patients sell
-					attested records to researchers through atomic, privacy-preserving exchanges —
-					without revealing identity or raw records.
+					A decentralized ZK marketplace for verified health data on Polkadot. Patients
+					sell attested records to researchers through atomic, privacy-preserving
+					exchanges — without revealing identity or raw records.
 				</p>
 			</div>
 

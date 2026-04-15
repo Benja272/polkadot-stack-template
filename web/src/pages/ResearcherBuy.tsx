@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { type Address, formatEther } from "viem";
-import {
-	medicalMarketAbi,
-	evmDevAccounts,
-	getPublicClient,
-	getWalletClient,
-} from "../config/evm";
+import { medicalMarketAbi, evmDevAccounts, getPublicClient, getWalletClient } from "../config/evm";
 import { deployments } from "../config/deployments";
 import { fetchStatements } from "../hooks/useStatementStore";
 import { useChainStore } from "../store/chainStore";
@@ -38,8 +33,7 @@ export default function ResearcherBuy() {
 	const wsUrl = useChainStore((s) => s.wsUrl);
 
 	const storageKey = `medical-market-address:${ethRpcUrl}`;
-	const defaultAddress =
-		(deployments as Record<string, string | null>).medicalMarket ?? null;
+	const defaultAddress = (deployments as Record<string, string | null>).medicalMarket ?? null;
 
 	const [contractAddress, setContractAddress] = useState("");
 	const [selectedAccount, setSelectedAccount] = useState(0);
@@ -307,11 +301,7 @@ export default function ResearcherBuy() {
 			<div className="card space-y-4">
 				<div className="flex items-center justify-between">
 					<h2 className="section-title">Active Listings</h2>
-					<button
-						onClick={loadAll}
-						disabled={loading}
-						className="btn-secondary text-xs"
-					>
+					<button onClick={loadAll} disabled={loading} className="btn-secondary text-xs">
 						{loading ? "Loading..." : "Refresh"}
 					</button>
 				</div>
@@ -391,7 +381,9 @@ export default function ResearcherBuy() {
 										<span className="text-text-tertiary font-medium">
 											Order #{order.id.toString()}
 										</span>
-										<span className={`text-xs font-medium ${orderStatusColor(order)}`}>
+										<span
+											className={`text-xs font-medium ${orderStatusColor(order)}`}
+										>
 											{orderStatus(order)}
 										</span>
 									</div>
