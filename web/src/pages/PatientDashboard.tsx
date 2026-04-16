@@ -8,9 +8,18 @@ import { getDevKeypair } from "../hooks/useAccount";
 import { useChainStore } from "../store/chainStore";
 import FileDropZone from "../components/FileDropZone";
 
+interface SignedPackage {
+	fields: Record<string, unknown>;
+	merkleRoot: string;
+	merkleTree: { leaves: string[]; depth: number };
+	signature: { R8x: string; R8y: string; S: string };
+	publicKey: { x: string; y: string };
+	signedAt: string;
+}
+
 interface Listing {
 	id: bigint;
-	statementHash: `0x${string}`;
+	merkleRoot: `0x${string}`;
 	price: bigint;
 	patient: string;
 	active: boolean;
@@ -59,6 +68,8 @@ export default function PatientDashboard() {
 	const [contractAddress, setContractAddress] = useState("");
 	const [selectedAccount, setSelectedAccount] = useState(0);
 	const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
+	const [importedPackage, setImportedPackage] = useState<SignedPackage | null>(null);
+	const [packageParseError, setPackageParseError] = useState<string | null>(null);
 	const [statementStoreAvailable, setStatementStoreAvailable] = useState<boolean | null>(null);
 	const [priceStr, setPriceStr] = useState("");
 	const [listings, setListings] = useState<Listing[]>([]);
@@ -96,6 +107,27 @@ export default function PatientDashboard() {
 
 	const onFileBytes = useCallback((bytes: Uint8Array) => {
 		setFileBytes(bytes);
+		setPackageParseError(null);
+		try {
+			const json: unknown = JSON.parse(new TextDecoder().decode(bytes));
+			if (
+				typeof json === "object" &&
+				json !== null &&
+				"merkleRoot" in json &&
+				"fields" in json &&
+				"signature" in json
+			) {
+				setImportedPackage(json as SignedPackage);
+			} else {
+				setImportedPackage(null);
+				setPackageParseError(
+					"Not a valid signed record. Use the Medic Signing Tool to produce one.",
+				);
+			}
+		} catch {
+			setImportedPackage(null);
+			setPackageParseError("Could not parse file as JSON.");
+		}
 	}, []);
 
 	const currentAddress = evmDevAccounts[selectedAccount].account.address;
@@ -145,9 +177,9 @@ export default function PatientDashboard() {
 					abi: medicalMarketAbi,
 					functionName: "getListing",
 					args: [i],
-				})) as readonly [`0x${string}`, bigint, string, boolean];
+				})) as readonly [`0x${string}`, `0x${string}`, bigint, string, boolean];
 
-				const [statementHash, price, patient, active] = rawTuple;
+				const [merkleRoot, , price, patient, active] = rawTuple;
 
 				// Only include listings belonging to the current account
 				if (patient.toLowerCase() !== currentAddress.toLowerCase()) continue;
@@ -161,7 +193,7 @@ export default function PatientDashboard() {
 
 				result.push({
 					id: i,
-					statementHash,
+					merkleRoot,
 					price,
 					patient,
 					active,
@@ -182,8 +214,8 @@ export default function PatientDashboard() {
 			setTxStatus("Error: Enter a contract address first");
 			return;
 		}
-		if (!fileBytes) {
-			setTxStatus("Error: Drop a file first");
+		if (!fileBytes || !importedPackage) {
+			setTxStatus("Error: Drop a medic-signed record first");
 			return;
 		}
 		if (!priceStr || isNaN(Number(priceStr)) || Number(priceStr) <= 0) {
@@ -198,11 +230,11 @@ export default function PatientDashboard() {
 		try {
 			if (!(await verifyContract())) return;
 
-			// Step 1: Encrypt the file bytes with AES-256-GCM
-			setTxStatus("Encrypting file...");
+			// Step 1: Encrypt the signed package bytes with AES-256-GCM
+			setTxStatus("Encrypting signed record...");
 			const { encrypted, keyHex } = await encryptData(fileBytes);
 
-			// Step 2: Compute blake2b-256 hash of the ciphertext (used as on-chain lookup key)
+			// Step 2: Compute blake2b-256 of the ciphertext — Statement Store lookup key
 			const ciphertextHash = bytesToHex(blake2b(encrypted, undefined, 32));
 
 			// Step 3: Upload encrypted bytes to Statement Store
@@ -210,14 +242,18 @@ export default function PatientDashboard() {
 			const keypair = getDevKeypair(selectedAccount);
 			await submitToStatementStore(wsUrl, encrypted, keypair.publicKey, keypair.sign);
 
-			// Step 4: Create listing on-chain with the ciphertext hash
+			// Step 4: Create listing on-chain with Merkle root + statement hash
 			setTxStatus("Creating listing on-chain...");
 			const walletClient = await getWalletClient(selectedAccount, ethRpcUrl);
 			const txHash = await walletClient.writeContract({
 				address: contractAddress as Address,
 				abi: medicalMarketAbi,
 				functionName: "createListing",
-				args: [ciphertextHash, parseEther(priceStr)],
+				args: [
+					importedPackage.merkleRoot as `0x${string}`,
+					ciphertextHash,
+					parseEther(priceStr),
+				],
 			});
 			setTxStatus(`Transaction submitted: ${txHash}`);
 			const publicClient = getPublicClient(ethRpcUrl);
@@ -355,9 +391,10 @@ export default function PatientDashboard() {
 			<div className="card space-y-4">
 				<h2 className="section-title">Create Listing</h2>
 				<p className="text-text-muted text-xs">
-					Your file will be encrypted with AES-256-GCM in your browser. Only the
-					ciphertext hash is stored on-chain. The decryption key is released to the buyer
-					only when you confirm the sale.
+					Drop a medic-signed record (downloaded from the Medic Signing Tool). The signed
+					package is encrypted with AES-256-GCM in your browser and uploaded to the
+					Statement Store. The Merkle root is committed on-chain — the decryption key is
+					released only when you confirm the sale.
 				</p>
 
 				<FileDropZone
@@ -371,6 +408,24 @@ export default function PatientDashboard() {
 					onStatementStoreToggle={() => {}}
 					statementStoreDisabled={statementStoreAvailable === false}
 				/>
+
+				{packageParseError && (
+					<p className="text-accent-red text-xs">{packageParseError}</p>
+				)}
+
+				{importedPackage && (
+					<div className="rounded-lg border border-accent-green/20 bg-accent-green/[0.04] p-3 space-y-1 text-xs">
+						<p className="text-accent-green font-medium">Signed record loaded</p>
+						<p className="text-text-secondary font-mono break-all">
+							Root: {importedPackage.merkleRoot.slice(0, 18)}…
+							{importedPackage.merkleRoot.slice(-8)}
+						</p>
+						<p className="text-text-muted">
+							{Object.keys(importedPackage.fields).length} fields · signed{" "}
+							{new Date(importedPackage.signedAt).toLocaleString()}
+						</p>
+					</div>
+				)}
 
 				{statementStoreAvailable === false && (
 					<p className="text-accent-red text-xs">
@@ -390,7 +445,7 @@ export default function PatientDashboard() {
 					/>
 				</div>
 
-				{fileBytes && (
+				{importedPackage && fileBytes && (
 					<button
 						onClick={createListing}
 						className="btn-accent"
@@ -449,8 +504,8 @@ export default function PatientDashboard() {
 								>
 									<div className="flex items-center justify-between gap-2">
 										<p className="font-mono text-xs text-text-secondary break-all">
-											{listing.statementHash.slice(0, 18)}…
-											{listing.statementHash.slice(-8)}
+											{listing.merkleRoot.slice(0, 18)}…
+											{listing.merkleRoot.slice(-8)}
 										</p>
 										<span
 											className={`text-xs font-medium px-1.5 py-0.5 rounded whitespace-nowrap ${

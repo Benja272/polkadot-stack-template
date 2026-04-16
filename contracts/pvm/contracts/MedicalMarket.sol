@@ -2,15 +2,18 @@
 pragma solidity ^0.8.28;
 
 /// @title MedicalMarket
-/// @notice Phase 0b marketplace: patients encrypt their record, upload the ciphertext to the
-///         Statement Store, and list the blake2b-256 hash of the ciphertext with a price.
+/// @notice Phase 1 marketplace: patients import a medic-signed record (Poseidon Merkle tree +
+///         EdDSA BabyJubJub signature), encrypt the full signed package, upload the ciphertext
+///         to the Statement Store, and list the Merkle root on-chain with a price.
 ///         After a researcher locks payment, the patient calls fulfill() to post the AES-256-GCM
 ///         decryption key on-chain — releasing funds and letting the researcher decrypt.
-///         No ZK, no Merkle trees — adds the first privacy layer on top of the Phase 0a skeleton.
+///         No ZK proof yet — manual key release. The Merkle root commitment enables selective
+///         field disclosure proofs in Phase 3+.
 ///         Compiles to both EVM (solc) and PVM (resolc) bytecode.
 contract MedicalMarket {
 	struct Listing {
-		bytes32 statementHash; // blake2b-256 hash of the AES-GCM ciphertext in the Statement Store
+		bytes32 merkleRoot; // Poseidon Merkle root of the signed JSON record fields
+		bytes32 statementHash; // blake2b-256 of the AES-GCM ciphertext (Statement Store lookup key)
 		uint256 price; // price in wei (native PAS)
 		address patient;
 		bool active; // false if cancelled or already fulfilled
@@ -37,6 +40,7 @@ contract MedicalMarket {
 	event ListingCreated(
 		address indexed patient,
 		uint256 indexed listingId,
+		bytes32 merkleRoot,
 		bytes32 statementHash,
 		uint256 price
 	);
@@ -56,19 +60,21 @@ contract MedicalMarket {
 	event ListingCancelled(uint256 indexed listingId, address indexed patient);
 
 	/// @notice Create a new listing for an encrypted record at the given price.
-	/// @param statementHash The blake2b-256 hash of the AES-GCM ciphertext stored in the Statement Store.
+	/// @param merkleRoot The Poseidon Merkle root of the signed JSON record fields.
+	/// @param statementHash The blake2b-256 hash of the AES-GCM ciphertext in the Statement Store (lookup key).
 	/// @param price The sale price in wei (native PAS). Must be greater than zero.
-	function createListing(bytes32 statementHash, uint256 price) external {
+	function createListing(bytes32 merkleRoot, bytes32 statementHash, uint256 price) external {
 		require(price > 0, "Price must be greater than zero");
 		uint256 listingId = listingCount;
 		listings[listingId] = Listing({
+			merkleRoot: merkleRoot,
 			statementHash: statementHash,
 			price: price,
 			patient: msg.sender,
 			active: true
 		});
 		listingCount++;
-		emit ListingCreated(msg.sender, listingId, statementHash, price);
+		emit ListingCreated(msg.sender, listingId, merkleRoot, statementHash, price);
 	}
 
 	/// @notice Lock native PAS as payment for a listing. Only one order may be pending per listing.
@@ -147,15 +153,26 @@ contract MedicalMarket {
 
 	/// @notice Get the details of a listing.
 	/// @param id The listing ID.
-	/// @return statementHash The blake2b-256 hash of the ciphertext in the Statement Store.
+	/// @return merkleRoot The Poseidon Merkle root of the signed record fields.
+	/// @return statementHash The blake2b-256 hash of the AES-GCM ciphertext (Statement Store lookup key).
 	/// @return price The sale price in wei.
 	/// @return patient The address of the patient who created the listing.
 	/// @return active Whether the listing is still open.
 	function getListing(
 		uint256 id
-	) external view returns (bytes32 statementHash, uint256 price, address patient, bool active) {
+	)
+		external
+		view
+		returns (
+			bytes32 merkleRoot,
+			bytes32 statementHash,
+			uint256 price,
+			address patient,
+			bool active
+		)
+	{
 		Listing storage l = listings[id];
-		return (l.statementHash, l.price, l.patient, l.active);
+		return (l.merkleRoot, l.statementHash, l.price, l.patient, l.active);
 	}
 
 	/// @notice Get the total number of listings ever created.

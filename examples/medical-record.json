@@ -1,0 +1,16 @@
+{
+  "patientId": "PAT-2024-0047",
+  "dateOfBirth": "1982-03-15",
+  "bloodType": "A+",
+  "condition": "type2_diabetes",
+  "diagnosedAt": "2019-06-01",
+  "hba1c": "7.4",
+  "bmi": "28.3",
+  "smoker": "false",
+  "systolicBP": "128",
+  "diastolicBP": "82",
+  "cholesterol": "195",
+  "medicationMetformin": "true",
+  "medicationInsulin": "false",
+  "country": "FI"
+}

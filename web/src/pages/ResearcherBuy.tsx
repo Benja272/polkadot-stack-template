@@ -7,6 +7,7 @@ import { useChainStore } from "../store/chainStore";
 
 interface Listing {
 	id: bigint;
+	merkleRoot: `0x${string}`;
 	statementHash: `0x${string}`;
 	price: bigint;
 	patient: Address;
@@ -104,8 +105,8 @@ export default function ResearcherBuy() {
 					abi: medicalMarketAbi,
 					functionName: "getListing",
 					args: [i],
-				})) as [string, bigint, string, boolean];
-				const [statementHash, price, patient, active] = result;
+				})) as [string, string, bigint, string, boolean];
+				const [merkleRoot, statementHash, price, patient, active] = result;
 				if (!active) continue;
 				const pendingOrderId = (await client.readContract({
 					address: addr,
@@ -115,6 +116,7 @@ export default function ResearcherBuy() {
 				})) as bigint;
 				fetchedListings.push({
 					id: i,
+					merkleRoot: merkleRoot as `0x${string}`,
 					statementHash: statementHash as `0x${string}`,
 					price,
 					patient: patient as Address,
@@ -194,8 +196,8 @@ export default function ResearcherBuy() {
 				abi: medicalMarketAbi,
 				functionName: "getListing",
 				args: [order.listingId],
-			})) as [string, bigint, string, boolean];
-			const statementHash = listingResult[0] as string;
+			})) as [string, string, bigint, string, boolean];
+			const statementHash = listingResult[1] as string;
 
 			// Fetch the AES-256-GCM decryption key posted by the patient
 			setTxStatus("Reading decryption key from contract...");
@@ -379,7 +381,8 @@ export default function ResearcherBuy() {
 									)}
 								</div>
 								<p className="font-mono text-xs text-text-secondary break-all">
-									Hash: {listing.statementHash}
+									Root: {listing.merkleRoot.slice(0, 18)}…
+									{listing.merkleRoot.slice(-8)}
 								</p>
 								<p className="text-text-tertiary">
 									Patient:{" "}

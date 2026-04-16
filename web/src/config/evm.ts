@@ -44,12 +44,13 @@ export const proofOfExistenceAbi = [
 	},
 ] as const;
 
-// MedicalMarket contract ABI — Phase 0a listing + escrow + atomic swap
+// MedicalMarket contract ABI — Phase 1 listing + escrow + manual key release
 export const medicalMarketAbi = [
 	{
 		type: "function",
 		name: "createListing",
 		inputs: [
+			{ name: "merkleRoot", type: "bytes32" },
 			{ name: "statementHash", type: "bytes32" },
 			{ name: "price", type: "uint256" },
 		],
@@ -92,6 +93,7 @@ export const medicalMarketAbi = [
 		name: "getListing",
 		inputs: [{ name: "id", type: "uint256" }],
 		outputs: [
+			{ name: "merkleRoot", type: "bytes32" },
 			{ name: "statementHash", type: "bytes32" },
 			{ name: "price", type: "uint256" },
 			{ name: "patient", type: "address" },
@@ -139,6 +141,7 @@ export const medicalMarketAbi = [
 		inputs: [
 			{ name: "patient", type: "address", indexed: true },
 			{ name: "listingId", type: "uint256", indexed: true },
+			{ name: "merkleRoot", type: "bytes32", indexed: false },
 			{ name: "statementHash", type: "bytes32", indexed: false },
 			{ name: "price", type: "uint256", indexed: false },
 		],
@@ -179,18 +182,21 @@ export const medicalMarketAbi = [
 export const evmDevAccounts = [
 	{
 		name: "Alice",
+		privateKey: "0x5fb92d6e98884f76de468fa3f6278f8807c48bebc13595d45af5bdc4da702133" as const,
 		account: privateKeyToAccount(
 			"0x5fb92d6e98884f76de468fa3f6278f8807c48bebc13595d45af5bdc4da702133",
 		),
 	},
 	{
 		name: "Bob",
+		privateKey: "0x8075991ce870b93a8870eca0c0f91913d12f47948ca0fd25b49c6fa7cdbeee8b" as const,
 		account: privateKeyToAccount(
 			"0x8075991ce870b93a8870eca0c0f91913d12f47948ca0fd25b49c6fa7cdbeee8b",
 		),
 	},
 	{
 		name: "Charlie",
+		privateKey: "0x0b6e18cafb6ed99687ec547bd28139cafbd3a4f28014f8640076aba0082bf262" as const,
 		account: privateKeyToAccount(
 			"0x0b6e18cafb6ed99687ec547bd28139cafbd3a4f28014f8640076aba0082bf262",
 		),
