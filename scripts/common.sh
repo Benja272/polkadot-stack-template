@@ -48,7 +48,7 @@ export FRONTEND_URL
 STACK_EXPECTED_POLKADOT_SEMVER="${STACK_EXPECTED_POLKADOT_SEMVER:-1.21.3}"
 STACK_EXPECTED_OMNI_NODE_SEMVER="${STACK_EXPECTED_OMNI_NODE_SEMVER:-1.21.3}"
 STACK_EXPECTED_ETH_RPC_SEMVER="${STACK_EXPECTED_ETH_RPC_SEMVER:-0.12.0}"
-STACK_EXPECTED_CHAIN_SPEC_BUILDER_SEMVER="${STACK_EXPECTED_CHAIN_SPEC_BUILDER_SEMVER:-17.0.0}"
+STACK_EXPECTED_CHAIN_SPEC_BUILDER_SEMVER="${STACK_EXPECTED_CHAIN_SPEC_BUILDER_SEMVER:-16.0.0}"
 # zombienet prints bare semver (e.g. 1.3.138); allow any 1.3.x patch.
 STACK_EXPECTED_ZOMBIE_MAJOR_MINOR="${STACK_EXPECTED_ZOMBIE_MAJOR_MINOR:-1.3}"
 # Set to 1 to only check that commands exist (not recommended).
@@ -78,7 +78,7 @@ install_hint() {
             echo "Install Rust via rustup: https://rustup.rs/"
             ;;
         chain-spec-builder)
-            echo "Install with: cargo install staging-chain-spec-builder"
+            echo "Run ./scripts/download-sdk-binaries.sh to fetch stable2512-3 assets into ./bin/, or see docs/INSTALL.md."
             ;;
         zombienet)
             echo "Install with: npm install -g @zombienet/cli"
@@ -131,6 +131,7 @@ stack_sdk_expected_semver() {
         polkadot-prepare-worker | polkadot-execute-worker) printf '%s\n' "$STACK_EXPECTED_POLKADOT_SEMVER" ;;
         polkadot-omni-node) printf '%s\n' "$STACK_EXPECTED_OMNI_NODE_SEMVER" ;;
         eth-rpc) printf '%s\n' "$STACK_EXPECTED_ETH_RPC_SEMVER" ;;
+        chain-spec-builder) printf '%s\n' "$STACK_EXPECTED_CHAIN_SPEC_BUILDER_SEMVER" ;;
         *)
             log_error "Internal error: unknown SDK binary: $1"
             exit 1
@@ -195,7 +196,7 @@ _ensure_one_sdk_binary() {
 }
 
 # Ensures listed SDK binaries exist under STACK_LOCAL_BIN_DIR and prepends that directory on PATH.
-# Names: polkadot | polkadot-prepare-worker | polkadot-execute-worker | polkadot-omni-node | eth-rpc
+# Names: polkadot | polkadot-prepare-worker | polkadot-execute-worker | polkadot-omni-node | eth-rpc | chain-spec-builder
 # Relay polkadot requires the two worker binaries beside it on PATH (same release).
 ensure_local_sdk_binaries() {
     [[ "${STACK_DOWNLOAD_SDK_BINARIES:-1}" == "1" ]] || return 0
@@ -274,20 +275,20 @@ validate_zombienet_node_binaries() {
 }
 
 validate_zombienet_toolchain() {
-    ensure_local_sdk_binaries polkadot polkadot-prepare-worker polkadot-execute-worker polkadot-omni-node
+    ensure_local_sdk_binaries polkadot polkadot-prepare-worker polkadot-execute-worker polkadot-omni-node chain-spec-builder
     validate_chain_spec_builder_version
     validate_zombienet_node_binaries
 }
 
 validate_full_external_toolchain() {
-    ensure_local_sdk_binaries polkadot polkadot-prepare-worker polkadot-execute-worker polkadot-omni-node eth-rpc
+    ensure_local_sdk_binaries polkadot polkadot-prepare-worker polkadot-execute-worker polkadot-omni-node eth-rpc chain-spec-builder
     validate_chain_spec_builder_version
     validate_zombienet_node_binaries
     require_cmd_semver_exact eth-rpc "$STACK_EXPECTED_ETH_RPC_SEMVER" "eth-rpc (pallet-revive-eth-rpc)"
 }
 
 validate_solo_dev_toolchain() {
-    ensure_local_sdk_binaries polkadot-omni-node
+    ensure_local_sdk_binaries polkadot-omni-node chain-spec-builder
     validate_chain_spec_builder_version
     require_cmd_semver_exact polkadot-omni-node "$STACK_EXPECTED_OMNI_NODE_SEMVER" "polkadot-omni-node"
 }
