@@ -20,6 +20,7 @@
 
 services:
   node:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: docker/Dockerfile.node
@@ -46,6 +47,7 @@ services:
       start_period: 10s
 
   eth-rpc:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: docker/Dockerfile.eth-rpc

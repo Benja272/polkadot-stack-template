@@ -3,8 +3,12 @@
 #
 # No Rust toolchain or polkadot-sdk binaries needed on the host.
 
+ARG SDK_RELEASE=polkadot-stable2512-3
+ARG OMNI_NODE_TAG=stable2512-3
+
 # Stage 1 — Build the parachain runtime WASM binary
 FROM rust:bookworm AS builder
+ARG SDK_RELEASE
 WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends protobuf-compiler && rm -rf /var/lib/apt/lists/*
 RUN rustup target add wasm32-unknown-unknown && rustup component add rust-src
@@ -14,7 +18,8 @@ COPY cli/ cli/
 RUN cargo build -p stack-template-runtime --release
 
 # Stage 2 — Generate the chain spec from the compiled WASM
-RUN cargo install staging-chain-spec-builder
+RUN curl -fsSL "https://github.com/paritytech/polkadot-sdk/releases/download/${SDK_RELEASE}/chain-spec-builder" \
+    -o /usr/local/bin/chain-spec-builder && chmod +x /usr/local/bin/chain-spec-builder
 RUN chain-spec-builder \
     -c /build/chain_spec.json \
     create \
@@ -27,5 +32,6 @@ RUN chain-spec-builder \
     named-preset development
 
 # Stage 3 — Final image: just the omni-node binary + our chain spec
-FROM docker.io/parity/polkadot-omni-node:stable2512-3
+ARG OMNI_NODE_TAG
+FROM docker.io/parity/polkadot-omni-node:${OMNI_NODE_TAG}
 COPY --from=builder /build/chain_spec.json /chain/chain_spec.json
