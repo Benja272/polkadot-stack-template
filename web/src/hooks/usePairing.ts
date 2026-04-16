@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { createPappAdapter, type UserSession, type PairingStatus } from "@novasamatech/host-papp";
 import { createLocalStorageAdapter } from "@novasamatech/storage-adapter";
 import { ss58Address } from "@polkadot-labs/hdkd-helpers";
@@ -7,8 +7,9 @@ import type { SigningPayloadRequest } from "@novasamatech/host-papp";
 import { substrateToH160, type AppAccount } from "./useAccount";
 
 // Singleton — one adapter per browser session.
-// Uses host-papp's built-in Paseo Statement Store endpoints so the phone
-// can reach the pairing handshake topic from anywhere.
+// Statement store and lazyClient use host-papp defaults:
+// wss://pop3-testnet.parity-lab.parity.io/people (Parity testnet).
+// This is publicly reachable by the phone — no local node required for pairing.
 let adapter: ReturnType<typeof createPappAdapter> | null = null;
 
 export function getPappAdapter() {
@@ -20,8 +21,6 @@ export function getPappAdapter() {
 			metadata: `${window.location.origin}/nova-metadata.json`,
 			adapters: {
 				// Persist sessions across page reloads.
-				// Statement store and lazyClient use host-papp defaults (Paseo) so the
-				// phone can reach the handshake topic without a local node.
 				storage: createLocalStorageAdapter("pmp:"),
 			},
 		});
@@ -29,17 +28,13 @@ export function getPappAdapter() {
 	return adapter;
 }
 
-/** React hook — subscribes to the SSO pairing state machine. */
+/** React hook — subscribes to the SSO pairing state machine.
+ *  Uses useSyncExternalStore (React 18) for concurrent-mode safety. */
 export function usePairingStatus(): PairingStatus {
-	const [status, setStatus] = useState<PairingStatus>(() =>
-		getPappAdapter().sso.pairingStatus.read(),
+	return useSyncExternalStore(
+		getPappAdapter().sso.pairingStatus.subscribe,
+		getPappAdapter().sso.pairingStatus.read,
 	);
-
-	useEffect(() => {
-		return getPappAdapter().sso.pairingStatus.subscribe(setStatus);
-	}, []);
-
-	return status;
 }
 
 /** Build an AppAccount from a live UserSession after pairing completes. */
