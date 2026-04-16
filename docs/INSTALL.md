@@ -76,7 +76,7 @@ Zombienet runs the **`polkadot`** relay binary; local dev uses **`polkadot-omni-
 ./scripts/download-sdk-binaries.sh
 ```
 
-That fetches `polkadot`, `polkadot-prepare-worker`, `polkadot-execute-worker`, `polkadot-omni-node`, and `eth-rpc` into **`./bin/`** (gitignored). The stack scripts prepend `./bin` on `PATH` when **`STACK_DOWNLOAD_SDK_BINARIES=1`** (default). The relay binary requires the two **worker** binaries in the **same directory** as `polkadot`; the script places them together.
+That fetches `polkadot`, `polkadot-prepare-worker`, `polkadot-execute-worker`, `polkadot-omni-node`, `eth-rpc`, `chain-spec-builder`, and `zombienet` into **`./bin/`** (gitignored). The stack scripts prepend `./bin` on `PATH` when **`STACK_DOWNLOAD_SDK_BINARIES=1`** (default). The relay binary requires the two **worker** binaries in the **same directory** as `polkadot`; the script places them together.
 
 Platform support for the downloader matches the script today: macOS Apple Silicon and Linux x86_64. If your platform cannot use the downloader-managed binaries, see [Manual Binary Fallback (limited support)](#manual-binary-fallback-limited-support) at the end of this guide.
 
@@ -91,6 +91,12 @@ Platform support for the downloader matches the script today: macOS Apple Silico
 
 ./bin/eth-rpc --version
 # pallet-revive-eth-rpc 0.12.0
+
+./bin/chain-spec-builder --version
+# staging-chain-spec-builder 16.0.0
+
+./bin/zombienet version
+# 1.3.133
 ```
 
 If `./bin` is on your `PATH` (as when running `./scripts/start-all.sh` or after `export PATH="$(pwd)/bin:$PATH"`), you can call `polkadot --version` etc. without the prefix.
@@ -99,7 +105,9 @@ If `./bin` is on your `PATH` (as when running `./scripts/start-all.sh` or after 
 
 ### Chain Spec Builder
 
-Used to generate the chain specification from the runtime WASM.
+Used to generate the chain specification from the runtime WASM. Downloaded automatically by `./scripts/download-sdk-binaries.sh` alongside the other SDK binaries.
+
+Fallback (manual install):
 
 ```bash
 cargo install staging-chain-spec-builder
@@ -107,9 +115,9 @@ cargo install staging-chain-spec-builder
 
 ### Zombienet
 
-The local dev scripts use `zombienet` to start the relay-chain + collator topology on fixed local ports.
+The local dev scripts use `zombienet` to start the relay-chain + collator topology on fixed local ports. Downloaded automatically by `./scripts/download-sdk-binaries.sh` from the [paritytech/zombienet releases](https://github.com/paritytech/zombienet/releases).
 
-One common install path is:
+Fallback (manual install via npm):
 
 ```bash
 npm install -g @zombienet/cli
