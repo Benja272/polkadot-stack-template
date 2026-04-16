@@ -34,9 +34,15 @@ if ! command -v ipfs &>/dev/null; then
     exit 1
 fi
 
-# Read MNEMONIC from hardhat vars if not set in environment
-HARDHAT_VARS_FILE="$HOME/Library/Preferences/hardhat-nodejs/vars.json"
-if [ -z "${MNEMONIC:-}" ] && [ -f "$HARDHAT_VARS_FILE" ]; then
+# Read MNEMONIC from hardhat vars if not set in environment (Linux/macOS).
+HARDHAT_VARS_FILE="${HARDHAT_VARS_FILE:-}"
+if [ -z "${HARDHAT_VARS_FILE:-}" ]; then
+    HARDHAT_VARS_FILE="$(
+        node -e "const fs=require('fs');const os=require('os');const path=require('path');const home=os.homedir();const cand=[process.env.HARDHAT_VARS_FILE,path.join(home,'Library/Preferences/hardhat-nodejs/vars.json'),path.join(home,'.config/hardhat-nodejs/vars.json')].filter(Boolean);for(const p of cand){try{fs.accessSync(p,fs.constants.R_OK);process.stdout.write(p);process.exit(0);}catch{}}"
+    )"
+fi
+
+if [ -z "${MNEMONIC:-}" ] && [ -n "${HARDHAT_VARS_FILE:-}" ] && [ -f "$HARDHAT_VARS_FILE" ]; then
     MNEMONIC=$(node -e "try{const v=require('$HARDHAT_VARS_FILE');process.stdout.write(v.vars.MNEMONIC??'')}catch(e){}" 2>/dev/null || true)
 fi
 
