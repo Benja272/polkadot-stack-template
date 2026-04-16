@@ -1,4 +1,4 @@
-use crate::commands::{rpc_call, resolve_statement_signer, submit_to_statement_store};
+use crate::commands::{resolve_statement_signer, rpc_call, submit_to_statement_store};
 use blake2::{
 	digest::{consts::U32, Digest},
 	Blake2b,
@@ -24,10 +24,7 @@ pub enum StatementAction {
 	},
 }
 
-pub async fn run(
-	action: StatementAction,
-	url: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run(action: StatementAction, url: &str) -> Result<(), Box<dyn std::error::Error>> {
 	match action {
 		StatementAction::List => list(url).await?,
 		StatementAction::Submit { file, signer } => submit(&file, &signer, url).await?,

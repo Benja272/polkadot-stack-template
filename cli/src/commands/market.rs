@@ -1,6 +1,9 @@
 use crate::commands::contract::resolve_signer;
 use alloy::{
-	primitives::{utils::format_ether, utils::parse_ether, Address, U256},
+	primitives::{
+		utils::{format_ether, parse_ether},
+		Address, U256,
+	},
 	providers::ProviderBuilder,
 };
 use clap::Subcommand;
@@ -148,8 +151,7 @@ pub async fn run(
 				let result = contract.getListing(U256::from(id)).call().await?;
 				let pending_order_result =
 					contract.getPendingOrderId(U256::from(id)).call().await?;
-				let pending_order_id: u64 =
-					pending_order_result.try_into().unwrap_or(u64::MAX);
+				let pending_order_id: u64 = pending_order_result.try_into().unwrap_or(u64::MAX);
 
 				let status = listing_status(result.active, pending_order_id);
 				println!(
@@ -168,10 +170,8 @@ pub async fn run(
 			let contract = MedicalMarket::new(contract_addr, &provider);
 
 			let result = contract.getListing(U256::from(id)).call().await?;
-			let pending_order_result =
-				contract.getPendingOrderId(U256::from(id)).call().await?;
-			let pending_order_id: u64 =
-				pending_order_result.try_into().unwrap_or(u64::MAX);
+			let pending_order_result = contract.getPendingOrderId(U256::from(id)).call().await?;
+			let pending_order_id: u64 = pending_order_result.try_into().unwrap_or(u64::MAX);
 
 			let status = listing_status(result.active, pending_order_id);
 
@@ -245,8 +245,7 @@ pub async fn run(
 			let hash_bytes: alloy::primitives::FixedBytes<32> = statement_hash.parse()?;
 
 			let wallet = alloy::network::EthereumWallet::from(resolve_signer(&signer)?);
-			let provider =
-				ProviderBuilder::new().wallet(wallet).connect_http(eth_rpc_url.parse()?);
+			let provider = ProviderBuilder::new().wallet(wallet).connect_http(eth_rpc_url.parse()?);
 			let contract = MedicalMarket::new(contract_addr, &provider);
 
 			println!("Creating listing: hash={statement_hash}  price={price} ETH...");
@@ -273,15 +272,15 @@ pub async fn run(
 			let price = listing.price;
 
 			let wallet = alloy::network::EthereumWallet::from(resolve_signer(&signer)?);
-			let provider =
-				ProviderBuilder::new().wallet(wallet).connect_http(eth_rpc_url.parse()?);
+			let provider = ProviderBuilder::new().wallet(wallet).connect_http(eth_rpc_url.parse()?);
 			let contract = MedicalMarket::new(contract_addr, &provider);
 
 			println!(
 				"Placing buy order on listing #{listing_id} for {} ETH...",
 				format_ether(price)
 			);
-			let pending = contract.placeBuyOrder(U256::from(listing_id)).value(price).send().await?;
+			let pending =
+				contract.placeBuyOrder(U256::from(listing_id)).value(price).send().await?;
 			let receipt = pending.get_receipt().await?;
 			println!(
 				"Confirmed in block {}: tx {}",
@@ -294,8 +293,7 @@ pub async fn run(
 			let contract_addr = load_market_address()?;
 			let key_bytes: alloy::primitives::FixedBytes<32> = decryption_key.parse()?;
 			let wallet = alloy::network::EthereumWallet::from(resolve_signer(&signer)?);
-			let provider =
-				ProviderBuilder::new().wallet(wallet).connect_http(eth_rpc_url.parse()?);
+			let provider = ProviderBuilder::new().wallet(wallet).connect_http(eth_rpc_url.parse()?);
 			let contract = MedicalMarket::new(contract_addr, &provider);
 
 			println!("Fulfilling order #{order_id} with decryption key...");
@@ -311,8 +309,7 @@ pub async fn run(
 		MarketAction::CancelListing { listing_id, signer } => {
 			let contract_addr = load_market_address()?;
 			let wallet = alloy::network::EthereumWallet::from(resolve_signer(&signer)?);
-			let provider =
-				ProviderBuilder::new().wallet(wallet).connect_http(eth_rpc_url.parse()?);
+			let provider = ProviderBuilder::new().wallet(wallet).connect_http(eth_rpc_url.parse()?);
 			let contract = MedicalMarket::new(contract_addr, &provider);
 
 			println!("Cancelling listing #{listing_id}...");
