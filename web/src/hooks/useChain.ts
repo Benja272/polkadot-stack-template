@@ -13,9 +13,14 @@ export function getClient(wsUrl?: string): PolkadotClient {
 		if (client) {
 			client.destroy();
 		}
-		// When embedded in Nova Wallet, requests are proxied through the Host for Asset Hub.
-		// Outside Nova Wallet (local dev / browser), the fallback WS provider is used.
-		const provider = createPapiProvider(WellKnownChain.polkadotAssetHub, getWsProvider(url));
+		// createPapiProvider routes through Nova Wallet's host when embedded in its webview/iframe.
+		// Outside that environment it throws synchronously — fall back to a direct WS connection.
+		let provider;
+		try {
+			provider = createPapiProvider(WellKnownChain.polkadotAssetHub, getWsProvider(url));
+		} catch {
+			provider = getWsProvider(url);
+		}
 		client = createClient(withPolkadotSdkCompat(provider));
 		currentUrl = url;
 	}
