@@ -1,6 +1,7 @@
 import hre from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
+import { polkadotHubTestnet } from "../hardhat.config";
 
 const DEPLOYMENTS_JSON = path.resolve(__dirname, "../../../deployments.json");
 const DEPLOYMENTS_TS = path.resolve(__dirname, "../../../web/src/config/deployments.ts");
@@ -61,8 +62,11 @@ async function deployContract(
 }
 
 async function main() {
-	const [walletClient] = await hre.viem.getWalletClients();
-	const publicClient = await hre.viem.getPublicClient();
+	const isTestnet = hre.network.name === "polkadotTestnet";
+	const chainOption = isTestnet ? { chain: polkadotHubTestnet } : {};
+
+	const [walletClient] = await hre.viem.getWalletClients(chainOption);
+	const publicClient = await hre.viem.getPublicClient(chainOption);
 
 	console.log("Deploying Verifier (PVM/resolc)...");
 	const verifierAddress = await deployContract(walletClient, publicClient, "Verifier");

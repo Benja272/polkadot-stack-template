@@ -2,6 +2,16 @@ import type { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-viem";
 import "@parity/hardhat-polkadot";
 import { vars } from "hardhat/config";
+import { defineChain } from "viem";
+
+export const polkadotHubTestnet = defineChain({
+	id: 420420417,
+	name: "Polkadot Hub TestNet",
+	nativeCurrency: { name: "Unit", symbol: "UNIT", decimals: 18 },
+	rpcUrls: {
+		default: { http: ["https://services.polkadothub-rpc.com/testnet"] },
+	},
+});
 
 const config: HardhatUserConfig = {
 	solidity: {

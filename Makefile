@@ -21,20 +21,25 @@ export MNEMONIC
 # ─── Paseo deploy ─────────────────────────────────────────────────────────────
 
 .PHONY: deploy-paseo
-deploy-paseo: check-key deploy-paseo-evm deploy-paseo-pvm
+deploy-paseo: check-key deploy-paseo-evm deploy-paseo-pvm deploy-paseo-market
 	@echo ""
 	@echo "=== Paseo deployment complete ==="
 	@cat $(ROOT_DIR)/deployments.json
 
 .PHONY: deploy-paseo-evm
 deploy-paseo-evm:
-	@echo "[1/2] Deploying ProofOfExistence (EVM)..."
+	@echo "[1/3] Deploying ProofOfExistence (EVM)..."
 	@cd $(EVM_DIR) && npm install --silent && npx hardhat compile --quiet && npx hardhat run scripts/deploy.ts --network polkadotTestnet
 
 .PHONY: deploy-paseo-pvm
 deploy-paseo-pvm:
-	@echo "[2/2] Deploying ProofOfExistence (PVM)..."
+	@echo "[2/3] Deploying ProofOfExistence (PVM)..."
 	@cd $(PVM_DIR) && npm install --silent && npx hardhat compile --quiet && npx hardhat run scripts/deploy.ts --network polkadotTestnet
+
+.PHONY: deploy-paseo-market
+deploy-paseo-market:
+	@echo "[3/3] Deploying MedicalMarket + Verifier (PVM)..."
+	@cd $(PVM_DIR) && npm install --silent && npx hardhat compile --quiet && npx hardhat run scripts/deploy-market.ts --network polkadotTestnet
 
 # ─── Frontend deploy ──────────────────────────────────────────────────────────
 

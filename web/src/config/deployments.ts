@@ -5,8 +5,8 @@ export const deployments: {
 	medicalMarket: string | null;
 	verifier: string | null;
 } = {
-	evm: "0xc01ee7f10ea4af4673cfff62710e1d7792aba8f3",
-	pvm: "0x970951a12f975e6762482aca81e57d5a2a4e73f4",
-	medicalMarket: "0x962c0940d72e7db6c9a5f81f1ca87d8db2b82a23",
-	verifier: "0x3ed62137c5db927cb137c26455969116bf0c23cb",
+	evm: "0xec8d19d09cdbaf5dd0a086bad5838bef508b218c",
+	pvm: "0xb7d9b15b26afbde6f142da27574662d5855484db",
+	medicalMarket: "0xb3f616654e64990e8ff0db69c20219b22cfc6784",
+	verifier: "0x3fdd9b0da39c3c450ab49b353ccc2cbcd493e515",
 };
