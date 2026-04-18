@@ -43,3 +43,9 @@ contracts/*/ignition/deployments/
 
 # Local MCP server config (machine-specific paths)
 .mcp.json
+
+# AI / tooling local configuration
+.claude/
+.codex/
+.gemini/
+.envrc
