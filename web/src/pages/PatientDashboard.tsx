@@ -12,7 +12,6 @@ import { getStackTemplateDescriptor } from "../hooks/useConnection";
 import { useChainStore } from "../store/chainStore";
 import { formatDispatchError } from "../utils/format";
 import FileDropZone from "../components/FileDropZone";
-import { NovaWalletConnect } from "../components/NovaWalletConnect";
 import { type MerklePackage } from "../utils/zk";
 
 // Maximum native balance we're willing to spend on storage deposits (100 tokens in planck).
@@ -481,20 +480,6 @@ export default function PatientDashboard() {
 							</option>
 						))}
 					</select>
-					<div className="mt-2">
-						<NovaWalletConnect
-							onConnected={(account) => {
-								setAccounts([account]);
-								setSelectedAccountIndex(0);
-							}}
-							onDisconnected={() => {
-								getAccountsWithFallback()
-									.then(setAccounts)
-									.catch(() => setAccounts(devAccounts));
-								setSelectedAccountIndex(0);
-							}}
-						/>
-					</div>
 				</div>
 			</div>
 

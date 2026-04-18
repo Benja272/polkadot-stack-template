@@ -72,9 +72,13 @@ export const devAccounts: AppAccount[] = [
 /**
  * Resolve accounts via:
  *   1. Nova Wallet / Spektr (product-sdk) — when running in the Host webview/iframe
- *   2. QR-paired Nova Wallet session (host-papp) — persisted in localStorage
- *   3. Browser extension wallets (Polkadot.js, Talisman, SubWallet)
- *   4. Dev accounts (local only)
+ *   2. Browser extension wallets (Polkadot.js, Talisman, SubWallet)
+ *   3. Dev accounts (local only)
+ *
+ * The QR-paired host-papp path was previously slotted between 1 and 2 but is
+ * currently disabled — QR pairing is handled by the Polkadot Host shell when
+ * the app is served from `<domain>.dot.li`. See web/src/hooks/usePairing.ts
+ * (kept for reference, not wired in).
  */
 export async function getAccountsWithFallback(): Promise<AppAccount[]> {
 	// 1. Nova Wallet / Spektr
@@ -94,18 +98,6 @@ export async function getAccountsWithFallback(): Promise<AppAccount[]> {
 		}
 	} catch {
 		// Not in Nova Wallet — fall through
-	}
-
-	// 2. QR-paired Nova Wallet session (persisted across reloads)
-	try {
-		// Dynamic import to avoid initialising the Paseo adapter unless needed.
-		const { getPappAdapter, getAppAccountFromSession } = await import("./usePairing");
-		const sessions = getPappAdapter().sessions.sessions.read();
-		if (sessions.length > 0) {
-			return sessions.map((s) => getAppAccountFromSession(s));
-		}
-	} catch {
-		// no paired session — fall through
 	}
 
 	// 2. Browser extension wallets

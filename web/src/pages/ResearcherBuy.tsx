@@ -6,7 +6,6 @@ import { medicalMarketAbi, getPublicClient } from "../config/evm";
 import { deployments } from "../config/deployments";
 import { fetchStatements } from "../hooks/useStatementStore";
 import { devAccounts, getAccountsWithFallback, type AppAccount } from "../hooks/useAccount";
-import { NovaWalletConnect } from "../components/NovaWalletConnect";
 import { getClient } from "../hooks/useChain";
 import { getStackTemplateDescriptor } from "../hooks/useConnection";
 import { useChainStore } from "../store/chainStore";
@@ -405,20 +404,6 @@ export default function ResearcherBuy() {
 							</option>
 						))}
 					</select>
-					<div className="mt-2">
-						<NovaWalletConnect
-							onConnected={(account) => {
-								setAccounts([account]);
-								setSelectedAccountIndex(0);
-							}}
-							onDisconnected={() => {
-								getAccountsWithFallback()
-									.then(setAccounts)
-									.catch(() => setAccounts(devAccounts));
-								setSelectedAccountIndex(0);
-							}}
-						/>
-					</div>
 				</div>
 
 				{txStatus && (
