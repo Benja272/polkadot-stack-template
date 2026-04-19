@@ -186,16 +186,24 @@ export default function PatientDashboard() {
 		const descriptor = await getStackTemplateDescriptor();
 		const api = client.getTypedApi(descriptor);
 
-		// Fetch nonce at best block (not finalized) so we see tx-pool-current state.
-		// PAPI's default nonce source is the latest FINALIZED block, which lags the
-		// best block by several seconds on Paseo. If a previous tx (even a reverted
-		// one) landed in best but hasn't finalized, the default picks a stale nonce
-		// and the chain rejects with InvalidTxError::Stale.
+		// Use `system_accountNextIndex` (mempool-aware) instead of reading
+		// System.Account.nonce from a block. The latter is only updated on block
+		// inclusion — if a prior tx from this account is still in the tx pool
+		// (not yet in a block), the next submission would reuse the same nonce
+		// and the chain rejects it with InvalidTxError::Stale. The raw RPC
+		// returns `current_nonce + (pending pool txs)` which is what we want.
 		async function freshNonce(): Promise<number> {
-			const acct = await api.query.System.Account.getValue(currentAccount.address, {
-				at: "best",
-			});
-			return acct.nonce;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const raw = await (client as any)._request("system_accountNextIndex", [
+				currentAccount.address,
+			]);
+			// RPC returns a decimal string or number depending on the provider;
+			// coerce to number safely.
+			const n = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+			if (!Number.isFinite(n))
+				throw new Error(`bad system_accountNextIndex response: ${raw}`);
+			console.log("[reviveCall] system_accountNextIndex =", n);
+			return n;
 		}
 
 		// pallet-revive requires an AccountId32 ↔ H160 mapping before a contract call.

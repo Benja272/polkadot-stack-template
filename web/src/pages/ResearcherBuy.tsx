@@ -124,14 +124,20 @@ export default function ResearcherBuy() {
 		const descriptor = await getStackTemplateDescriptor();
 		const api = client.getTypedApi(descriptor);
 
-		// See PatientDashboard.reviveCall for the rationale. PAPI's default nonce
-		// source is the finalized block, which lags best by several seconds on
-		// Paseo; explicit best-block nonce lookup avoids InvalidTxError::Stale.
+		// See PatientDashboard.reviveCall for rationale. Uses the raw RPC
+		// system_accountNextIndex which returns a nonce that accounts for
+		// pending-pool txs, avoiding InvalidTxError::Stale when a previous tx
+		// is still in the mempool.
 		async function freshNonce(): Promise<number> {
-			const acct = await api.query.System.Account.getValue(currentAccount.address, {
-				at: "best",
-			});
-			return acct.nonce;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const raw = await (client as any)._request("system_accountNextIndex", [
+				currentAccount.address,
+			]);
+			const n = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+			if (!Number.isFinite(n))
+				throw new Error(`bad system_accountNextIndex response: ${raw}`);
+			console.log("[reviveCall] system_accountNextIndex =", n);
+			return n;
 		}
 
 		// pallet-revive requires an AccountId32 ↔ H160 mapping before a contract call.
