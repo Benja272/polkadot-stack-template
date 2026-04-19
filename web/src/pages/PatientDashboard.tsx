@@ -186,6 +186,16 @@ export default function PatientDashboard() {
 		const descriptor = await getStackTemplateDescriptor();
 		const api = client.getTypedApi(descriptor);
 
+		console.log("[reviveCall] entry", {
+			functionName,
+			accountsLen: accounts.length,
+			accountNames: accounts.map((a) => a.name),
+			selectedAccountIndex,
+			currentAccountName: currentAccount?.name,
+			currentAccountAddress: currentAccount?.address,
+			currentAccountEvm: currentAccount?.evmAddress,
+		});
+
 		// Fetch nonce directly from Paseo Asset Hub's public HTTPS RPC, bypassing
 		// the Host-proxied PAPI client. The Host's RPC proxy was returning 0 for
 		// `system_accountNextIndex` (probably filtered/unsupported), causing every

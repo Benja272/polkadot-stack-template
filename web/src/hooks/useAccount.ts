@@ -106,17 +106,28 @@ const getAccountsProvider = () => (_accountsProvider ??= createAccountsProvider(
  */
 export async function getAccountsWithFallback(): Promise<AppAccount[]> {
 	// 1. Polkadot Host product account (stable per dotNsId)
+	// When we're inside the Host, we MUST use the product account — falling through
+	// to browser extensions / dev accounts gives us the wrong msg.sender at
+	// contract-call time and makes listings created here unfullfillable on
+	// re-open (different keypair → different H160).
+	let hostReady = false;
 	try {
-		const ready = await injectSpektrExtension();
-		if (ready) {
+		hostReady = await injectSpektrExtension();
+		console.log("[account] Host ready:", hostReady);
+		if (hostReady) {
 			const [dotNsIdentifier, derivationIndex] = MARKETPLACE_ACCOUNT_ID;
 			const provider = getAccountsProvider();
+			console.log("[account] requesting product account", {
+				dotNsIdentifier,
+				derivationIndex,
+			});
 			const result = await Promise.race([
 				provider.getProductAccount(dotNsIdentifier, derivationIndex),
 				new Promise<never>((_, r) =>
 					setTimeout(() => r(new Error("getProductAccount timed out (10s)")), 10_000),
 				),
 			]);
+			console.log("[account] getProductAccount result isOk?", result.isOk());
 			if (result.isOk()) {
 				const { publicKey, name } = result.value;
 				const productAccount: ProductAccount = {
@@ -124,18 +135,34 @@ export async function getAccountsWithFallback(): Promise<AppAccount[]> {
 					derivationIndex,
 					publicKey,
 				};
-				return [
-					{
-						name: name ?? "Polkadot Host",
-						address: ss58Address(publicKey),
-						signer: provider.getProductAccountSigner(productAccount),
-						evmAddress: substrateToH160(publicKey),
-					},
-				];
+				const acc = {
+					name: name ?? "Polkadot Host",
+					address: ss58Address(publicKey),
+					signer: provider.getProductAccountSigner(productAccount),
+					evmAddress: substrateToH160(publicKey),
+				};
+				console.log("[account] product account resolved:", {
+					name: acc.name,
+					address: acc.address,
+					evmAddress: acc.evmAddress,
+				});
+				return [acc];
+			} else {
+				console.warn("[account] getProductAccount returned Err:", result.error);
 			}
 		}
 	} catch (err) {
-		console.warn("[account] Product account unavailable:", err);
+		console.warn("[account] Product account path threw:", err);
+	}
+
+	// Inside Host with no product account → refuse to fall through. Returning
+	// dev accounts here would silently use Alice/Bob/Charlie for signing, which
+	// the Host proxies AS IF it were the user — landing txs with the wrong H160.
+	if (hostReady) {
+		console.error(
+			"[account] Host is ready but product account failed; refusing to fall back to dev/extension accounts. The UI will show no account — reload the page to retry.",
+		);
+		return [];
 	}
 
 	// 2. Browser extension wallets
