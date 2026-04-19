@@ -219,6 +219,53 @@ proof with encrypted ciphertext, contract verifies and swaps, researcher decrypt
 
 **Milestone check**: Demo flow completes on Paseo with test USDT.
 
+### Phase 6 follow-up: persist AES keys across IPFS redeploys via Host KV
+
+**Problem**: `PatientDashboard.createListing` currently stores the AES-256-GCM key with
+`localStorage.setItem(...)`, which is scoped to the page's origin. The app iframe is served
+from `https://<ipfs-cid>.app.dot.li` — every `make deploy-frontend` publishes a new CID →
+new iframe origin → empty localStorage → all previously stored AES keys are orphaned. The
+on-chain listing survives but becomes undecryptable until the patient finds the key file
+somewhere else.
+
+**Fix**: route AES-key storage (and any other persistent small blobs) through the Polkadot
+Host's KV API instead of `window.localStorage`. `@novasamatech/host-api` exposes:
+
+```ts
+hostApi.localStorageRead(key: string)  : Promise<Result<Option<Uint8Array>, StorageErr>>
+hostApi.localStorageWrite(key, value)  : Promise<Result<void, StorageErr>>
+hostApi.localStorageClear(key: string) : Promise<Result<void, StorageErr>>
+```
+
+Where the data lives:
+- Browser storage on `host.dot.li`'s origin (IndexedDB or localStorage, Host implementation
+  detail), not the app iframe's origin.
+- Scoped per-app by `dotNsId` (e.g. `medical-sdk-staging42.dot`).
+- **Survives IPFS CID changes** (app iframe origin changes; Host origin doesn't).
+- Still browser-local — does **not** sync across devices.
+- Deleted when user clears `host.dot.li` site data or switches browsers/devices.
+
+**Implementation sketch**:
+1. New wrapper `web/src/hooks/useHostStorage.ts` with `readKey` / `writeKey` / `clearKey`.
+2. Inside Host (`isInHost()` true): call `hostApi.localStorageRead/Write/Clear`.
+3. Outside Host (local dev): fall back to `window.localStorage` so the dev loop stays
+   zero-friction.
+4. Update call sites in `PatientDashboard.tsx` and `ResearcherBuy.tsx` that key off
+   `aes-key:…` and `signed-pkg:…`.
+
+**Does not fix — cross-device recovery**. This makes keys survive redeploys on the **same
+device**. For "patient creates listing on phone, fulfills on laptop" you still need either:
+- A **Download backup** UI button so the patient can save the key file and re-upload it
+  elsewhere.
+- The **in-circuit ECDH to buyer's pubkey** pattern from `ARCHITECTURE.md` Phase 5, which
+  encrypts the listing's decryption key for the buyer at buy-order time so the patient
+  never has to retain it. This is the long-term correct answer and aligns with the ZKCP
+  design.
+
+**Priority**: low-medium. Fine for single-session demos. Becomes required the moment a
+deploy cycle churns CIDs while there are live listings — which is the state the staging
+deploy is already in.
+
 ---
 
 ## Phase Summary
