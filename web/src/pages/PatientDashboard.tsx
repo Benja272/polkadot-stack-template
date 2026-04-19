@@ -199,10 +199,10 @@ export default function PatientDashboard() {
 			]);
 			// RPC returns a decimal string or number depending on the provider;
 			// coerce to number safely.
-			const n = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+			const n = typeof raw === "number" ? raw : Number(raw);
 			if (!Number.isFinite(n))
 				throw new Error(`bad system_accountNextIndex response: ${raw}`);
-			console.log("[reviveCall] system_accountNextIndex =", n);
+			console.log("[reviveCall] system_accountNextIndex raw =", raw, "parsed =", n);
 			return n;
 		}
 
