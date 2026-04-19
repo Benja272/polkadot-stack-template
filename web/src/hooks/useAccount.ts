@@ -8,8 +8,15 @@ import {
 import { getPolkadotSigner } from "polkadot-api/signer";
 import { type PolkadotSigner } from "polkadot-api";
 import { connectInjectedExtension, getInjectedExtensions } from "polkadot-api/pjs-signer";
-import { injectSpektrExtension, SpektrExtensionName } from "@novasamatech/product-sdk";
+import {
+	createAccountsProvider,
+	injectSpektrExtension,
+	sandboxTransport,
+	SpektrExtensionName,
+	type ProductAccount,
+} from "@novasamatech/product-sdk";
 import { Keccak256 } from "@polkadot-api/substrate-bindings";
+import { MARKETPLACE_ACCOUNT_ID } from "./useStatementStore";
 
 // Dev accounts derived from the well-known dev seed phrase
 const entropy = mnemonicToEntropy(DEV_PHRASE);
@@ -77,9 +84,18 @@ export const devAccounts: AppAccount[] = [
 	createDevAccount("Charlie", "//Charlie"),
 ];
 
+// Lazy singleton — one accountsProvider per app session.
+// Matches the pattern in useStatementStore.ts (`_store`).
+let _accountsProvider: ReturnType<typeof createAccountsProvider> | null = null;
+const getAccountsProvider = () => (_accountsProvider ??= createAccountsProvider(sandboxTransport));
+
 /**
  * Resolve accounts via:
- *   1. Nova Wallet / Spektr (product-sdk) — when running in the Host webview/iframe
+ *   1. Polkadot Host product account (`getProductAccount(dotNsId, 0)`) — stable
+ *      per-app identity across sessions/devices (same wallet, same dotNsId → same
+ *      public key). Replaces the per-session "guest" account path that previously
+ *      returned a fresh keypair every session, orphaning any listing created with
+ *      the previous guest.
  *   2. Browser extension wallets (Polkadot.js, Talisman, SubWallet)
  *   3. Dev accounts (local only)
  *
@@ -89,23 +105,37 @@ export const devAccounts: AppAccount[] = [
  * (kept for reference, not wired in).
  */
 export async function getAccountsWithFallback(): Promise<AppAccount[]> {
-	// 1. Nova Wallet / Spektr
+	// 1. Polkadot Host product account (stable per dotNsId)
 	try {
 		const ready = await injectSpektrExtension();
 		if (ready) {
-			const ext = await connectInjectedExtension(SpektrExtensionName);
-			const accounts = ext.getAccounts();
-			if (accounts.length > 0) {
-				return accounts.map((acc) => ({
-					name: acc.name ?? `${acc.address.slice(0, 6)}…${acc.address.slice(-4)}`,
-					address: acc.address,
-					signer: acc.polkadotSigner,
-					evmAddress: substrateToH160(acc.polkadotSigner.publicKey),
-				}));
+			const [dotNsIdentifier, derivationIndex] = MARKETPLACE_ACCOUNT_ID;
+			const provider = getAccountsProvider();
+			const result = await Promise.race([
+				provider.getProductAccount(dotNsIdentifier, derivationIndex),
+				new Promise<never>((_, r) =>
+					setTimeout(() => r(new Error("getProductAccount timed out (10s)")), 10_000),
+				),
+			]);
+			if (result.isOk()) {
+				const { publicKey, name } = result.value;
+				const productAccount: ProductAccount = {
+					dotNsIdentifier,
+					derivationIndex,
+					publicKey,
+				};
+				return [
+					{
+						name: name ?? "Polkadot Host",
+						address: ss58Address(publicKey),
+						signer: provider.getProductAccountSigner(productAccount),
+						evmAddress: substrateToH160(publicKey),
+					},
+				];
 			}
 		}
-	} catch {
-		// Not in Nova Wallet — fall through
+	} catch (err) {
+		console.warn("[account] Product account unavailable:", err);
 	}
 
 	// 2. Browser extension wallets
