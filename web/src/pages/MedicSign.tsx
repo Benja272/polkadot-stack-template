@@ -109,24 +109,46 @@ export default function MedicSign() {
 		setPubKey({ x: bigintToHex(pk[0]), y: bigintToHex(pk[1]) });
 	}
 
+	const packageJson =
+		fields && recordCommit && plaintext && sig && pubKey
+			? JSON.stringify(
+					{
+						version: "v2-record",
+						plaintext: plaintext.map((n) => n.toString()),
+						recordCommit: recordCommit.toString(),
+						signature: sig,
+						medicPublicKey: pubKey,
+						signedAt: new Date().toISOString(),
+						fieldsPreview: Object.fromEntries(fields),
+					} satisfies SignedRecord,
+					null,
+					2,
+				)
+			: null;
+
+	const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+
 	function downloadPackage() {
-		if (!fields || !recordCommit || !plaintext || !sig || !pubKey) return;
-		const pkg: SignedRecord = {
-			version: "v2-record",
-			plaintext: plaintext.map((n) => n.toString()),
-			recordCommit: recordCommit.toString(),
-			signature: sig,
-			medicPublicKey: pubKey,
-			signedAt: new Date().toISOString(),
-			fieldsPreview: Object.fromEntries(fields),
-		};
-		const blob = new Blob([JSON.stringify(pkg, null, 2)], { type: "application/json" });
+		if (!packageJson) return;
+		const blob = new Blob([packageJson], { type: "application/json" });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		a.href = url;
 		a.download = "signed-record.json";
 		a.click();
 		URL.revokeObjectURL(url);
+	}
+
+	async function copyPackage() {
+		if (!packageJson) return;
+		try {
+			await navigator.clipboard.writeText(packageJson);
+			setCopyState("copied");
+			setTimeout(() => setCopyState("idle"), 1500);
+		} catch {
+			setCopyState("failed");
+			setTimeout(() => setCopyState("idle"), 2000);
+		}
 	}
 
 	const stepDone = (n: Step) => step > n;
@@ -307,10 +329,36 @@ export default function MedicSign() {
 						</div>
 					)}
 
-					{sig && (
-						<button onClick={downloadPackage} className="btn-secondary w-full">
-							↓ Download Signed Record (.json)
-						</button>
+					{sig && packageJson && (
+						<div className="space-y-2">
+							<div className="flex gap-2">
+								<button
+									onClick={downloadPackage}
+									className="btn-secondary flex-1"
+									title="Triggers a file download. Blocked inside sandboxed iframes (e.g. DotNS Host) — use Copy as a fallback."
+								>
+									↓ Download (.json)
+								</button>
+								<button onClick={copyPackage} className="btn-secondary flex-1">
+									{copyState === "copied"
+										? "✓ Copied"
+										: copyState === "failed"
+											? "Copy failed"
+											: "⧉ Copy JSON"}
+								</button>
+							</div>
+							<details className="text-xs">
+								<summary className="cursor-pointer text-text-tertiary hover:text-text-secondary">
+									Show raw JSON (paste into a file if download is blocked)
+								</summary>
+								<textarea
+									readOnly
+									value={packageJson}
+									className="input-field w-full mt-2 font-mono text-[10px] h-40 resize-y"
+									onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+								/>
+							</details>
+						</div>
 					)}
 				</div>
 			)}
