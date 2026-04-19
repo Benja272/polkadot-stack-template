@@ -220,11 +220,16 @@ export async function generateProofFromRecord(args: {
 	const raw = await snarkjs.groth16.exportSolidityCallData(zkProof, publicSignals);
 	const parsed = JSON.parse("[" + raw + "]") as [string[], string[][], string[], string[]];
 
+	// snarkjs.groth16.exportSolidityCallData already emits G2 points in
+	// Solidity/pairing-precompile order ([x_im, x_re], [y_im, y_re]). Do NOT
+	// swap again — doing so produces natural snarkjs order and the pairing
+	// check fails. (gen_fixture.mjs reads from zkProof.pi_b raw and swaps
+	// manually because that path has not been through exportSolidityCallData.)
 	const solidityProof: SolidityProof = {
 		a: [BigInt(parsed[0][0]), BigInt(parsed[0][1])],
 		b: [
-			[BigInt(parsed[1][0][1]), BigInt(parsed[1][0][0])],
-			[BigInt(parsed[1][1][1]), BigInt(parsed[1][1][0])],
+			[BigInt(parsed[1][0][0]), BigInt(parsed[1][0][1])],
+			[BigInt(parsed[1][1][0]), BigInt(parsed[1][1][1])],
 		],
 		c: [BigInt(parsed[2][0]), BigInt(parsed[2][1])],
 		pubSignals: [

@@ -363,6 +363,27 @@ export default function PatientDashboard() {
 
 			// 4. Submit fulfill on-chain
 			setTxStatus("Submitting fulfill on-chain…");
+			// Debug: dump what we're about to submit so we can diff against chain state.
+			const listing = (await getPublicClient(ethRpcUrl).readContract({
+				address: contractAddress as Address,
+				abi: medicalMarketAbi,
+				functionName: "getListing",
+				args: [listingId],
+			})) as unknown as readonly [bigint, string, bigint, string, boolean];
+			console.log("[fulfill] listingId=", listingId, "orderId=", orderId);
+			console.log("[fulfill] chain listing.recordCommit =", listing[0].toString());
+			console.log("[fulfill] chain listing.patient      =", listing[3]);
+			console.log("[fulfill] chain order.pkBuyerX       =", order[5].toString());
+			console.log("[fulfill] chain order.pkBuyerY       =", order[6].toString());
+			console.log("[fulfill] msg.sender (evmAddress)     =", currentAccount.evmAddress);
+			console.log(
+				"[fulfill] proof.pubSignals           =",
+				proof.pubSignals.map((v) => v.toString()),
+			);
+			console.log("[fulfill]   [0] recordCommit (proof)  =", proof.pubSignals[0].toString());
+			console.log("[fulfill]   [3] pkBuyerX (proof)      =", proof.pubSignals[3].toString());
+			console.log("[fulfill]   [4] pkBuyerY (proof)      =", proof.pubSignals[4].toString());
+			console.log("[fulfill]   [8] nonce (proof)         =", proof.pubSignals[8].toString());
 			const { txHash } = await reviveCall("fulfill", [
 				orderId,
 				proof.a,
