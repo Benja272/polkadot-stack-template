@@ -219,6 +219,7 @@ export async function generateProofFromRecord(args: {
 
 	const raw = await snarkjs.groth16.exportSolidityCallData(zkProof, publicSignals);
 	const parsed = JSON.parse("[" + raw + "]") as [string[], string[][], string[], string[]];
+	console.log("[zk.ts v5.1-nosw] raw parsed[1]:", parsed[1]);
 
 	// snarkjs.groth16.exportSolidityCallData already emits G2 points in
 	// Solidity/pairing-precompile order ([x_im, x_re], [y_im, y_re]). Do NOT

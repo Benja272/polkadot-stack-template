@@ -19,8 +19,9 @@ import {
 
 // Maximum native balance we're willing to spend on storage deposits (100 tokens in planck).
 const MAX_STORAGE_DEPOSIT = 100_000_000_000_000n;
-// Generous weight limit for contract calls.
-const CALL_WEIGHT = { ref_time: 3_000_000_000n, proof_size: 1_048_576n };
+// Same generous limits as PatientDashboard — fulfill()'s Groth16 verification
+// is heavy and the small default trips ContractReverted.
+const CALL_WEIGHT = { ref_time: 100_000_000_000n, proof_size: 8_388_608n };
 // pallet-revive: 1 planck = 10^6 EVM wei (for 12-decimal chains).
 const WEI_TO_PLANCK = 1_000_000n;
 

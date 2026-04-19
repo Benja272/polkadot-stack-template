@@ -15,8 +15,10 @@ import { type SignedRecord, generateProofFromRecord } from "../utils/zk";
 
 // Maximum native balance we're willing to spend on storage deposits (100 tokens in planck).
 const MAX_STORAGE_DEPOSIT = 100_000_000_000_000n;
-// Generous weight limit for contract calls.
-const CALL_WEIGHT = { ref_time: 3_000_000_000n, proof_size: 1_048_576n };
+// Generous weight limit for contract calls. fulfill() runs the Groth16
+// verifier (9 ecMul + 9 ecAdd + 1 BN254 pairing) and easily exceeds
+// the small default — bump ref_time well above the verifier's cost.
+const CALL_WEIGHT = { ref_time: 100_000_000_000n, proof_size: 8_388_608n };
 // pallet-revive: 1 planck = 10^6 EVM wei (for 12-decimal chains).
 const WEI_TO_PLANCK = 1_000_000n;
 
