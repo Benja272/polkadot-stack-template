@@ -138,7 +138,9 @@ export default function MedicSign() {
 				<h1 className="page-title text-polka-500">Medic Signing Tool</h1>
 				<p className="text-text-secondary">
 					Sign patient records with your professional key. The patient imports this signed
-					package and lists it on the marketplace.
+					package and lists it on the marketplace. Your public key and the signature are
+					published with the listing so any researcher can verify the signing medic before
+					paying.
 				</p>
 			</div>
 

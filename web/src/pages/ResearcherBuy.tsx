@@ -14,20 +14,28 @@ import {
 	getOrCreateBuyerKey,
 	deserializeCiphertext,
 	computeCiphertextHash,
+	computeRecordCommit,
 	decryptRecord,
+	encodeRecordToFieldElements,
 } from "../utils/zk";
+import { verifySignature } from "@zk-kit/eddsa-poseidon";
 
 // Maximum native balance we're willing to spend on storage deposits (100 tokens in planck).
 const MAX_STORAGE_DEPOSIT = 100_000_000_000_000n;
-// Same as PatientDashboard — fulfill()'s Groth16 verifier needs headroom
-// but stays under the per-extrinsic block budget.
-const CALL_WEIGHT = { ref_time: 30_000_000_000n, proof_size: 2_097_152n };
+// Phase 5.2 fulfill() is just a storage write + transfers; placeBuyOrder also
+// modest. The previous 30 Bgas budget for the on-chain Groth16 verify is gone.
+const CALL_WEIGHT = { ref_time: 5_000_000_000n, proof_size: 524_288n };
 // pallet-revive: 1 planck = 10^6 EVM wei (for 12-decimal chains).
 const WEI_TO_PLANCK = 1_000_000n;
 
 interface Listing {
 	id: bigint;
 	recordCommit: bigint;
+	medicPkX: bigint;
+	medicPkY: bigint;
+	sigR8x: bigint;
+	sigR8y: bigint;
+	sigS: bigint;
 	title: string;
 	price: bigint;
 	patient: Address;
@@ -49,6 +57,8 @@ interface Order {
 interface DecryptedRecord {
 	orderId: bigint;
 	fields: Record<string, string>;
+	commitMatch: boolean;
+	sigValid: boolean;
 }
 
 function hexToBytes(hex: string): Uint8Array {
@@ -205,8 +215,30 @@ export default function ResearcherBuy() {
 					abi: medicalMarketAbi,
 					functionName: "getListing",
 					args: [i],
-				})) as [bigint, string, bigint, string, boolean];
-				const [recordCommit, title, price, patient, active] = result;
+				})) as readonly [
+					bigint,
+					bigint,
+					bigint,
+					bigint,
+					bigint,
+					bigint,
+					string,
+					bigint,
+					string,
+					boolean,
+				];
+				const [
+					recordCommit,
+					medicPkX,
+					medicPkY,
+					sigR8x,
+					sigR8y,
+					sigS,
+					title,
+					price,
+					patient,
+					active,
+				] = result;
 				if (!active) continue;
 				const pendingOrderId = (await client.readContract({
 					address: addr,
@@ -217,6 +249,11 @@ export default function ResearcherBuy() {
 				fetchedListings.push({
 					id: i,
 					recordCommit,
+					medicPkX,
+					medicPkY,
+					sigR8x,
+					sigR8y,
+					sigS,
 					title,
 					price,
 					patient: patient as Address,
@@ -316,6 +353,12 @@ export default function ResearcherBuy() {
 				return;
 			}
 
+			const listing = listings.find((l) => l.id === order.listingId);
+			if (!listing) {
+				setTxStatus(`Error: listing #${order.listingId} not loaded; click Refresh.`);
+				return;
+			}
+
 			setTxStatus("Fetching from Statement Store...");
 			const targetHashHex = uint256ToHashHex(ciphertextHash);
 			const matchedData = stmtCache.get(targetHashHex);
@@ -327,11 +370,11 @@ export default function ResearcherBuy() {
 				return;
 			}
 
-			setTxStatus("Verifying hash...");
+			setTxStatus("Verifying ciphertext hash...");
 			const ciphertext = deserializeCiphertext(matchedData);
 			const computed = computeCiphertextHash(ciphertext);
 			if (computed !== ciphertextHash) {
-				setTxStatus("Error: ciphertext integrity failed");
+				setTxStatus("Error: ciphertext integrity failed (Statement Store bytes corrupt)");
 				return;
 			}
 
@@ -345,11 +388,53 @@ export default function ResearcherBuy() {
 				nonce: order.id,
 			});
 
+			// Phase 5.2 off-chain verification — these checks replace the
+			// dropped in-circuit binding. If either fails the patient has griefed:
+			// (1) recordCommit recomputed from the decrypted plaintext must equal
+			//     the recordCommit the medic signed (locked at listing time);
+			// (2) medic's EdDSA-Poseidon signature must be valid over recordCommit
+			//     under the published medic pubkey.
+			setTxStatus("Verifying recordCommit...");
+			const recoveredPlaintext = encodeRecordToFieldElements(fields);
+			const recomputedCommit = computeRecordCommit(recoveredPlaintext);
+			const commitMatch = recomputedCommit === listing.recordCommit;
+
+			setTxStatus("Verifying medic signature...");
+			let sigValid = false;
+			try {
+				sigValid = verifySignature(
+					listing.recordCommit,
+					{
+						R8: [listing.sigR8x, listing.sigR8y],
+						S: listing.sigS,
+					},
+					[listing.medicPkX, listing.medicPkY],
+				);
+			} catch {
+				sigValid = false;
+			}
+
 			setDecryptedRecords((prev) => ({
 				...prev,
-				[order.id.toString()]: { orderId: order.id, fields },
+				[order.id.toString()]: {
+					orderId: order.id,
+					fields,
+					commitMatch,
+					sigValid,
+				},
 			}));
-			setTxStatus("Done");
+
+			if (!commitMatch) {
+				setTxStatus(
+					"WARNING: recordCommit mismatch — patient delivered different data than what was committed at listing time.",
+				);
+			} else if (!sigValid) {
+				setTxStatus(
+					"WARNING: medic signature invalid — published listing is not signed by the claimed medic pubkey.",
+				);
+			} else {
+				setTxStatus("Decrypted and verified.");
+			}
 		} catch (e) {
 			setTxStatus(`Error: ${e instanceof Error ? e.message : String(e)}`);
 		}
@@ -562,7 +647,19 @@ export default function ResearcherBuy() {
 									)}
 									{decrypted && (
 										<div className="mt-2 space-y-1">
-											<p className="text-text-secondary text-xs font-medium">
+											<div className="flex flex-wrap gap-2 text-xs">
+												<span
+													className={`px-1.5 py-0.5 rounded ${decrypted.commitMatch ? "bg-accent-green/10 text-accent-green" : "bg-accent-red/10 text-accent-red"}`}
+												>
+													{decrypted.commitMatch ? "✓" : "✗"} recordCommit
+												</span>
+												<span
+													className={`px-1.5 py-0.5 rounded ${decrypted.sigValid ? "bg-accent-green/10 text-accent-green" : "bg-accent-red/10 text-accent-red"}`}
+												>
+													{decrypted.sigValid ? "✓" : "✗"} medic signature
+												</span>
+											</div>
+											<p className="text-text-secondary text-xs font-medium pt-1">
 												Decrypted record:
 											</p>
 											<table className="w-full text-xs border-collapse">

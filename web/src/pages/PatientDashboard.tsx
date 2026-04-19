@@ -11,20 +11,24 @@ import { getStackTemplateDescriptor } from "../hooks/useConnection";
 import { useChainStore } from "../store/chainStore";
 import { formatDispatchError } from "../utils/format";
 import FileDropZone from "../components/FileDropZone";
-import { type SignedRecord, generateProofFromRecord } from "../utils/zk";
+import { type SignedRecord, encryptRecordForBuyer } from "../utils/zk";
 
 // Maximum native balance we're willing to spend on storage deposits (100 tokens in planck).
 const MAX_STORAGE_DEPOSIT = 100_000_000_000_000n;
-// Weight budget. fulfill() runs the Groth16 verifier (9 ecMul + 9 ecAdd
-// + 1 BN254 pairing) and needs more headroom than cheap reads/writes;
-// the per-extrinsic block budget caps us, so we sit a bit below it.
-const CALL_WEIGHT = { ref_time: 30_000_000_000n, proof_size: 2_097_152n };
+// Weight budget. fulfill() is now a small storage write + 2 ETH transfers; no
+// pairing math, so the previous 30 Bgas budget is overkill but harmless.
+const CALL_WEIGHT = { ref_time: 5_000_000_000n, proof_size: 524_288n };
 // pallet-revive: 1 planck = 10^6 EVM wei (for 12-decimal chains).
 const WEI_TO_PLANCK = 1_000_000n;
 
 interface Listing {
 	id: bigint;
 	recordCommit: bigint;
+	medicPkX: bigint;
+	medicPkY: bigint;
+	sigR8x: bigint;
+	sigR8y: bigint;
+	sigS: bigint;
 	title: string;
 	price: bigint;
 	patient: string;
@@ -231,15 +235,38 @@ export default function PatientDashboard() {
 
 			const result: Listing[] = [];
 			for (let i = 0n; i < count; i++) {
-				// getListing returns 5 fields: recordCommit, title, price, patient, active
+				// getListing returns: recordCommit, medicPkX, medicPkY, sigR8x, sigR8y, sigS,
+				//                     title, price, patient, active
 				const rawTuple = (await client.readContract({
 					address: addr,
 					abi: medicalMarketAbi,
 					functionName: "getListing",
 					args: [i],
-				})) as readonly [bigint, string, bigint, string, boolean];
+				})) as readonly [
+					bigint,
+					bigint,
+					bigint,
+					bigint,
+					bigint,
+					bigint,
+					string,
+					bigint,
+					string,
+					boolean,
+				];
 
-				const [recordCommit, title, price, patient, active] = rawTuple;
+				const [
+					recordCommit,
+					medicPkX,
+					medicPkY,
+					sigR8x,
+					sigR8y,
+					sigS,
+					title,
+					price,
+					patient,
+					active,
+				] = rawTuple;
 
 				if (patient.toLowerCase() !== currentAccount.evmAddress.toLowerCase()) continue;
 
@@ -250,7 +277,20 @@ export default function PatientDashboard() {
 					args: [i],
 				});
 
-				result.push({ id: i, recordCommit, title, price, patient, active, pendingOrderId });
+				result.push({
+					id: i,
+					recordCommit,
+					medicPkX,
+					medicPkY,
+					sigR8x,
+					sigR8y,
+					sigS,
+					title,
+					price,
+					patient,
+					active,
+					pendingOrderId,
+				});
 			}
 			setListings(result);
 		} catch (e) {
@@ -283,9 +323,19 @@ export default function PatientDashboard() {
 
 			setTxStatus("Creating listing on-chain...");
 			const recordCommit = BigInt(importedPackage.recordCommit);
+			const medicPkX = BigInt(importedPackage.medicPublicKey.x);
+			const medicPkY = BigInt(importedPackage.medicPublicKey.y);
+			const sigR8x = BigInt(importedPackage.signature.R8x);
+			const sigR8y = BigInt(importedPackage.signature.R8y);
+			const sigS = BigInt(importedPackage.signature.S);
 			const priceWei = parseEther(priceStr);
 			const { txHash } = await reviveCall("createListing", [
 				recordCommit,
+				medicPkX,
+				medicPkY,
+				sigR8x,
+				sigR8y,
+				sigS,
 				titleStr.trim(),
 				priceWei,
 			]);
@@ -333,8 +383,7 @@ export default function PatientDashboard() {
 			}
 			const pkg = JSON.parse(pkgJson) as SignedRecord;
 
-			// 1. Read order's pkBuyer
-			// getOrder returns: [listingId, researcher, amount, confirmed, cancelled, pkBuyerX, pkBuyerY]
+			// 1. Read order's pkBuyer.
 			const order = (await getPublicClient(ethRpcUrl).readContract({
 				address: contractAddress as Address,
 				abi: medicalMarketAbi,
@@ -343,17 +392,16 @@ export default function PatientDashboard() {
 			})) as unknown as readonly [bigint, string, bigint, boolean, boolean, bigint, bigint];
 			const pkBuyer = { x: order[5], y: order[6] };
 
-			// 2. Generate ZK proof + ciphertext
-			setTxStatus("Generating ZK proof… (1–3s)");
-			const { proof, ciphertextBytes } = await generateProofFromRecord({
+			// 2. Encrypt off-chain for buyer (ECDH + Poseidon stream cipher).
+			setTxStatus("Encrypting record for buyer…");
+			const { ephPk, ciphertextBytes, ciphertextHash } = encryptRecordForBuyer({
 				plaintext: pkg.plaintext.map(BigInt),
-				medicSignature: pkg.signature,
-				medicPublicKey: pkg.medicPublicKey,
 				pkBuyer,
 				nonce: orderId,
 			});
 
-			// 3. Upload ciphertext to Statement Store — abort if it fails
+			// 3. Upload ciphertext to Statement Store. Abort if rejected — the
+			//    buyer can't decrypt without it, so we don't release payment.
 			setTxStatus("Uploading ciphertext to Statement Store…");
 			const stmtSigner = currentAccount.localSigner ?? currentAccount.signer;
 			await submitToStatementStore(
@@ -363,35 +411,14 @@ export default function PatientDashboard() {
 				stmtSigner.signBytes,
 			);
 
-			// 4. Submit fulfill on-chain
+			// 4. Submit fulfill on-chain — releases payment, stores (ephPk,
+			//    ciphertextHash) so the buyer can fetch + decrypt.
 			setTxStatus("Submitting fulfill on-chain…");
-			// Debug: dump what we're about to submit so we can diff against chain state.
-			const listing = (await getPublicClient(ethRpcUrl).readContract({
-				address: contractAddress as Address,
-				abi: medicalMarketAbi,
-				functionName: "getListing",
-				args: [listingId],
-			})) as unknown as readonly [bigint, string, bigint, string, boolean];
-			console.log("[fulfill] listingId=", listingId, "orderId=", orderId);
-			console.log("[fulfill] chain listing.recordCommit =", listing[0].toString());
-			console.log("[fulfill] chain listing.patient      =", listing[3]);
-			console.log("[fulfill] chain order.pkBuyerX       =", order[5].toString());
-			console.log("[fulfill] chain order.pkBuyerY       =", order[6].toString());
-			console.log("[fulfill] msg.sender (evmAddress)     =", currentAccount.evmAddress);
-			console.log(
-				"[fulfill] proof.pubSignals           =",
-				proof.pubSignals.map((v) => v.toString()),
-			);
-			console.log("[fulfill]   [0] recordCommit (proof)  =", proof.pubSignals[0].toString());
-			console.log("[fulfill]   [3] pkBuyerX (proof)      =", proof.pubSignals[3].toString());
-			console.log("[fulfill]   [4] pkBuyerY (proof)      =", proof.pubSignals[4].toString());
-			console.log("[fulfill]   [8] nonce (proof)         =", proof.pubSignals[8].toString());
 			const { txHash } = await reviveCall("fulfill", [
 				orderId,
-				proof.a,
-				proof.b,
-				proof.c,
-				proof.pubSignals,
+				ephPk.x,
+				ephPk.y,
+				ciphertextHash,
 			]);
 			setTxStatus(`Done. Tx: ${txHash}`);
 			loadListings();
@@ -418,8 +445,9 @@ export default function PatientDashboard() {
 			<div className="space-y-2">
 				<h1 className="page-title text-polka-500">Patient Dashboard</h1>
 				<p className="text-text-secondary">
-					List medic-signed records for sale. When a researcher pays, you generate a ZK
-					proof and the encrypted record is delivered atomically — no trust required.
+					List medic-signed records for sale. When a researcher pays, you encrypt the
+					record for their public key and deliver it via the Statement Store. The buyer
+					verifies the medic signature + record commitment off-chain after decryption.
 				</p>
 			</div>
 
@@ -477,8 +505,9 @@ export default function PatientDashboard() {
 				<h2 className="section-title">Create Listing</h2>
 				<p className="text-text-muted text-xs">
 					Drop a v2 medic-signed record (downloaded from the Medic Signing Tool). The
-					record commitment is committed on-chain. The ZK proof and encrypted payload are
-					generated and uploaded at fulfillment time — nothing is uploaded now.
+					record commitment, medic public key, and signature are published with the
+					listing so researchers can verify the medic before paying. The encrypted payload
+					is uploaded at fulfillment time — nothing is uploaded now.
 				</p>
 
 				<FileDropZone
@@ -651,8 +680,8 @@ export default function PatientDashboard() {
 													"0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)",
 											}}
 										>
-											Fulfill with ZK Proof (Order #
-											{orderIdForFulfill.toString()})
+											Encrypt + Fulfill (Order #{orderIdForFulfill.toString()}
+											)
 										</button>
 									)}
 
