@@ -1,102 +1,152 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import hre from "hardhat";
+import { readFileSync } from "fs";
+import { join } from "path";
 
-describe("MedicalMarket ZK gate (PVM)", function () {
-	// Shared test data
-	const merkleRoot = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-	const statementHash = "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+// Regenerate the fixture with `cd circuits && node test/gen_fixture.mjs` after
+// any change to the circuit or zkey.
+const fixture = JSON.parse(
+	readFileSync(join(__dirname, "fixtures", "phase5_1_proof.json"), "utf8"),
+) as {
+	recordCommit: string;
+	pkBuyerX: string;
+	pkBuyerY: string;
+	orderId: number;
+	a: [string, string];
+	b: [[string, string], [string, string]];
+	c: [string, string];
+	pubSignals: string[];
+	skBuyer: string;
+	ciphertext: string[];
+	expectedRecord: Record<string, string>;
+};
+
+const proofA = fixture.a.map(BigInt) as [bigint, bigint];
+const proofB = fixture.b.map((row) => row.map(BigInt)) as unknown as [
+	[bigint, bigint],
+	[bigint, bigint],
+];
+const proofC = fixture.c.map(BigInt) as [bigint, bigint];
+type PubSignals = [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+const pubSignals = fixture.pubSignals.map(BigInt) as PubSignals;
+
+describe("MedicalMarket Phase 5.1 (ZKCP + Bulletin)", function () {
 	const title = "Blood Panel Q1 2025";
-	const price = 1_000_000n; // 1 µPAS in wei
-	const decryptionKey = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
-
-	// Zero proof elements — Verifier.verifyProof() will return false for these
-	const zeroA: [bigint, bigint] = [0n, 0n];
-	const zeroB: [[bigint, bigint], [bigint, bigint]] = [
-		[0n, 0n],
-		[0n, 0n],
-	];
-	const zeroC: [bigint, bigint] = [0n, 0n];
+	const price = 1_000_000n;
+	const recordCommit = BigInt(fixture.recordCommit);
+	const pkBuyerX = BigInt(fixture.pkBuyerX);
+	const pkBuyerY = BigInt(fixture.pkBuyerY);
 
 	async function deployFixture() {
 		const [patient, researcher] = await hre.viem.getWalletClients();
-		const publicClient = await hre.viem.getPublicClient();
-
-		// Deploy Verifier first, then pass its address to MedicalMarket
 		const verifier = await hre.viem.deployContract("Verifier");
 		const market = await hre.viem.deployContract("MedicalMarket", [verifier.address]);
-
-		return { market, verifier, patient, researcher, publicClient };
-	}
-
-	async function deployWithListing() {
-		const ctx = await deployFixture();
-		const { market, patient } = ctx;
-
-		await market.write.createListing(
-			[merkleRoot as `0x${string}`, statementHash as `0x${string}`, title, price],
-			{ account: patient.account },
-		);
-
-		return ctx;
+		return { market, verifier, patient, researcher };
 	}
 
 	async function deployWithOrder() {
-		const ctx = await deployWithListing();
-		const { market, researcher } = ctx;
-
-		// listingId = 0
-		await market.write.placeBuyOrder([0n], {
+		const ctx = await deployFixture();
+		const { market, patient, researcher } = ctx;
+		await market.write.createListing([recordCommit, title, price], {
+			account: patient.account,
+		});
+		await market.write.placeBuyOrder([0n, pkBuyerX, pkBuyerY], {
 			account: researcher.account,
 			value: price,
 		});
-
 		return ctx;
 	}
 
-	it("fulfill() reverts with zeroed proof (ZK proof invalid)", async function () {
+	it("createListing + placeBuyOrder + fulfill (golden path)", async function () {
 		const { market, patient } = await loadFixture(deployWithOrder);
+		const publicClient = await hre.viem.getPublicClient();
 
-		// pubSignals[0] must match merkleRoot to reach the verifyProof check
-		const matchingPubSignals: [bigint, bigint, bigint] = [BigInt(merkleRoot), 0n, 0n];
+		await market.write.fulfill([0n, proofA, proofB, proofC, pubSignals], {
+			account: patient.account,
+		});
 
+		const order = await market.read.getOrder([0n]);
+		expect(order[3]).to.equal(true); // confirmed
+
+		const fulfillment = await market.read.getFulfillment([0n]);
+		expect(fulfillment[0]).to.equal(pubSignals[5]); // ephPkX
+		expect(fulfillment[1]).to.equal(pubSignals[6]); // ephPkY
+		expect(fulfillment[2]).to.equal(pubSignals[7]); // ciphertextHash
+
+		const listing = await market.read.getListing([0n]);
+		expect(listing[4]).to.equal(false); // active flipped off
+
+		// Contract must hold no native balance after settlement.
+		const bal = await publicClient.getBalance({ address: market.address });
+		expect(bal).to.equal(0n);
+	});
+
+	it("fulfill reverts on recordCommit mismatch", async function () {
+		const { market, patient } = await loadFixture(deployWithOrder);
+		const bad = [...pubSignals] as PubSignals;
+		bad[0] = 42n;
 		try {
-			await market.write.fulfill(
-				[0n, decryptionKey as `0x${string}`, zeroA, zeroB, zeroC, matchingPubSignals],
-				{ account: patient.account },
-			);
-			expect.fail("Should have reverted with ZK proof invalid");
+			await market.write.fulfill([0n, proofA, proofB, proofC, bad], {
+				account: patient.account,
+			});
+			expect.fail("Should have reverted");
+		} catch (e: unknown) {
+			expect((e as Error).message).to.include("recordCommit mismatch");
+		}
+	});
+
+	it("fulfill reverts on pkBuyer mismatch", async function () {
+		const { market, patient } = await loadFixture(deployWithOrder);
+		const bad = [...pubSignals] as PubSignals;
+		bad[3] = pubSignals[3] + 1n;
+		try {
+			await market.write.fulfill([0n, proofA, proofB, proofC, bad], {
+				account: patient.account,
+			});
+			expect.fail("Should have reverted");
+		} catch (e: unknown) {
+			expect((e as Error).message).to.include("pkBuyerX mismatch");
+		}
+	});
+
+	it("fulfill reverts when nonce != orderId", async function () {
+		const { market, patient } = await loadFixture(deployWithOrder);
+		const bad = [...pubSignals] as PubSignals;
+		bad[8] = 99n;
+		try {
+			await market.write.fulfill([0n, proofA, proofB, proofC, bad], {
+				account: patient.account,
+			});
+			expect.fail("Should have reverted");
+		} catch (e: unknown) {
+			expect((e as Error).message).to.include("nonce must equal orderId");
+		}
+	});
+
+	it("fulfill reverts when an informational pubSignal is tampered (proof invalid)", async function () {
+		const { market, patient } = await loadFixture(deployWithOrder);
+		// medicPkX is pubSignals[1] — no contract-level require guards it, so the
+		// call reaches verifyProof and fails in the Groth16 pairing check.
+		const bad = [...pubSignals] as PubSignals;
+		bad[1] = pubSignals[1] + 1n;
+		try {
+			await market.write.fulfill([0n, proofA, proofB, proofC, bad], {
+				account: patient.account,
+			});
+			expect.fail("Should have reverted");
 		} catch (e: unknown) {
 			expect((e as Error).message).to.include("ZK proof invalid");
 		}
 	});
 
-	it("fulfill() reverts on merkleRoot mismatch", async function () {
-		const { market, patient } = await loadFixture(deployWithOrder);
-
-		// pubSignals[0] does not match the listing's merkleRoot
-		const wrongRoot = "0x0000000000000000000000000000000000000000000000000000000000000001";
-		const mismatchedPubSignals: [bigint, bigint, bigint] = [BigInt(wrongRoot), 0n, 0n];
-
-		try {
-			await market.write.fulfill(
-				[0n, decryptionKey as `0x${string}`, zeroA, zeroB, zeroC, mismatchedPubSignals],
-				{ account: patient.account },
-			);
-			expect.fail("Should have reverted with merkleRoot mismatch");
-		} catch (e: unknown) {
-			expect((e as Error).message).to.include("merkleRoot mismatch");
-		}
-	});
-
-	// TODO: Replace with a real proof once circuits/build.sh has been run and
-	// circuits/build/verification_key.json has been copied into Verifier.sol constants.
-	it.skip("fulfill() succeeds with a valid Groth16 proof", async function () {
-		// 1. Generate proof with snarkjs:
-		//    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-		//      input, "circuits/build/medical_disclosure.wasm", "circuits/build/medical_disclosure_final.zkey"
-		//    );
-		// 2. Format for Solidity using snarkjs.groth16.exportSolidityCallData().
-		// 3. Call market.write.fulfill([orderId, decryptionKey, a, b, c, pubSignals]).
+	it("cancelOrder refunds the researcher when patient never fulfils", async function () {
+		const { market, researcher } = await loadFixture(deployWithOrder);
+		const publicClient = await hre.viem.getPublicClient();
+		await market.write.cancelOrder([0n], { account: researcher.account });
+		const order = await market.read.getOrder([0n]);
+		expect(order[4]).to.equal(true); // cancelled
+		const bal = await publicClient.getBalance({ address: market.address });
+		expect(bal).to.equal(0n);
 	});
 });

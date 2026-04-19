@@ -2,7 +2,7 @@
 set -euo pipefail
 CIRCUIT=medical_disclosure
 BUILD=build
-PTAU=powersOfTau28_hez_final_15.ptau
+PTAU=powersOfTau28_hez_final_16.ptau
 
 mkdir -p ${BUILD}
 
@@ -14,7 +14,7 @@ circom ${CIRCUIT}.circom --r1cs --wasm --sym -o ${BUILD} \
 echo "==> Constraint count:"
 npx snarkjs r1cs info ${BUILD}/${CIRCUIT}.r1cs
 
-echo "==> Downloading ptau (~70MB, skipped if present)..."
+echo "==> Downloading ptau (~140MB, skipped if present)..."
 [ -f "${PTAU}" ] || curl -L -o "${PTAU}" \
   "https://storage.googleapis.com/zkevm/ptau/${PTAU}"
 
@@ -28,7 +28,7 @@ echo "==> Dev contribution (NOT for production)..."
 npx snarkjs zkey contribute \
   ${BUILD}/${CIRCUIT}_0000.zkey \
   ${BUILD}/${CIRCUIT}_final.zkey \
-  --name="Phase3Dev" \
+  --name="Phase5_1Dev" \
   -e="$(openssl rand -hex 32)" \
   -v
 
