@@ -134,7 +134,7 @@ export default function ResearcherBuy() {
 			setTxStatus("Registering account with pallet-revive (one-time)...");
 			await firstValueFrom(
 				api.tx.Revive.map_account()
-					.signSubmitAndWatch(currentAccount.signer)
+					.signSubmitAndWatch(currentAccount.signer, { at: "best" })
 					.pipe(
 						filter(
 							(e): e is TxBestBlocksState & { found: true } =>
@@ -150,7 +150,7 @@ export default function ResearcherBuy() {
 			weight_limit: CALL_WEIGHT,
 			storage_deposit_limit: MAX_STORAGE_DEPOSIT,
 			data: Binary.fromHex(calldata),
-		}).signAndSubmit(currentAccount.signer);
+		}).signAndSubmit(currentAccount.signer, { at: "best" });
 
 		if (!result.ok) {
 			throw new Error(formatDispatchError(result.dispatchError));

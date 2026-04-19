@@ -196,7 +196,7 @@ export default function PatientDashboard() {
 			setTxStatus("Registering account with pallet-revive (one-time)...");
 			await firstValueFrom(
 				api.tx.Revive.map_account()
-					.signSubmitAndWatch(currentAccount.signer)
+					.signSubmitAndWatch(currentAccount.signer, { at: "best" })
 					.pipe(
 						filter(
 							(e): e is TxBestBlocksState & { found: true } =>
@@ -216,7 +216,7 @@ export default function PatientDashboard() {
 				storage_deposit_limit: MAX_STORAGE_DEPOSIT,
 				data: Binary.fromHex(calldata),
 			})
-				.signSubmitAndWatch(currentAccount.signer)
+				.signSubmitAndWatch(currentAccount.signer, { at: "best" })
 				.pipe(
 					filter(
 						(e): e is TxBestBlocksState & { found: true } =>
