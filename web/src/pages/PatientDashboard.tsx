@@ -186,23 +186,29 @@ export default function PatientDashboard() {
 		const descriptor = await getStackTemplateDescriptor();
 		const api = client.getTypedApi(descriptor);
 
-		// Use `system_accountNextIndex` (mempool-aware) instead of reading
-		// System.Account.nonce from a block. The latter is only updated on block
-		// inclusion — if a prior tx from this account is still in the tx pool
-		// (not yet in a block), the next submission would reuse the same nonce
-		// and the chain rejects it with InvalidTxError::Stale. The raw RPC
-		// returns `current_nonce + (pending pool txs)` which is what we want.
+		// Fetch nonce directly from Paseo Asset Hub's public HTTPS RPC, bypassing
+		// the Host-proxied PAPI client. The Host's RPC proxy was returning 0 for
+		// `system_accountNextIndex` (probably filtered/unsupported), causing every
+		// tx to submit with nonce=0 → InvalidTxError::Stale for any account that
+		// has ever sent a tx. Direct RPC returns the correct mempool-aware value.
+		// Confirmed via: curl POST https://asset-hub-paseo.dotters.network → 16.
 		async function freshNonce(): Promise<number> {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const raw = await (client as any)._request("system_accountNextIndex", [
-				currentAccount.address,
-			]);
-			// RPC returns a decimal string or number depending on the provider;
-			// coerce to number safely.
-			const n = typeof raw === "number" ? raw : Number(raw);
-			if (!Number.isFinite(n))
-				throw new Error(`bad system_accountNextIndex response: ${raw}`);
-			console.log("[reviveCall] system_accountNextIndex raw =", raw, "parsed =", n);
+			const res = await fetch("https://asset-hub-paseo.dotters.network", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "system_accountNextIndex",
+					params: [currentAccount.address],
+				}),
+			});
+			const { result } = await res.json();
+			const n = typeof result === "number" ? result : Number(result);
+			if (!Number.isFinite(n)) {
+				throw new Error(`bad system_accountNextIndex response: ${JSON.stringify(result)}`);
+			}
+			console.log("[reviveCall] direct nonce =", n, "for", currentAccount.address);
 			return n;
 		}
 

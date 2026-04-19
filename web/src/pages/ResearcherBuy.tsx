@@ -124,19 +124,24 @@ export default function ResearcherBuy() {
 		const descriptor = await getStackTemplateDescriptor();
 		const api = client.getTypedApi(descriptor);
 
-		// See PatientDashboard.reviveCall for rationale. Uses the raw RPC
-		// system_accountNextIndex which returns a nonce that accounts for
-		// pending-pool txs, avoiding InvalidTxError::Stale when a previous tx
-		// is still in the mempool.
+		// Direct-RPC nonce fetch — see PatientDashboard.reviveCall for rationale.
 		async function freshNonce(): Promise<number> {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const raw = await (client as any)._request("system_accountNextIndex", [
-				currentAccount.address,
-			]);
-			const n = typeof raw === "number" ? raw : Number(raw);
-			if (!Number.isFinite(n))
-				throw new Error(`bad system_accountNextIndex response: ${raw}`);
-			console.log("[reviveCall] system_accountNextIndex raw =", raw, "parsed =", n);
+			const res = await fetch("https://asset-hub-paseo.dotters.network", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "system_accountNextIndex",
+					params: [currentAccount.address],
+				}),
+			});
+			const { result } = await res.json();
+			const n = typeof result === "number" ? result : Number(result);
+			if (!Number.isFinite(n)) {
+				throw new Error(`bad system_accountNextIndex response: ${JSON.stringify(result)}`);
+			}
+			console.log("[reviveCall] direct nonce =", n, "for", currentAccount.address);
 			return n;
 		}
 
