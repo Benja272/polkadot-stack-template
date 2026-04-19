@@ -124,17 +124,32 @@ export default function ResearcherBuy() {
 		const descriptor = await getStackTemplateDescriptor();
 		const api = client.getTypedApi(descriptor);
 
+		// See PatientDashboard.reviveCall for the rationale. PAPI's default nonce
+		// source is the finalized block, which lags best by several seconds on
+		// Paseo; explicit best-block nonce lookup avoids InvalidTxError::Stale.
+		async function freshNonce(): Promise<number> {
+			const acct = await api.query.System.Account.getValue(currentAccount.address, {
+				at: "best",
+			});
+			return acct.nonce;
+		}
+
 		// pallet-revive requires an AccountId32 ↔ H160 mapping before a contract call.
 		// Dev accounts are pre-mapped via deployment; Nova Wallet accounts are not.
 		const h160 = new FixedSizeBinary(
 			hexToBytes(currentAccount.evmAddress),
 		) as FixedSizeBinary<20>;
-		const existingMapping = await api.query.Revive.OriginalAccount.getValue(h160);
+		const existingMapping = await api.query.Revive.OriginalAccount.getValue(h160, {
+			at: "best",
+		});
 		if (!existingMapping) {
 			setTxStatus("Registering account with pallet-revive (one-time)...");
 			await firstValueFrom(
 				api.tx.Revive.map_account()
-					.signSubmitAndWatch(currentAccount.signer, { at: "best" })
+					.signSubmitAndWatch(currentAccount.signer, {
+						at: "best",
+						nonce: await freshNonce(),
+					})
 					.pipe(
 						filter(
 							(e): e is TxBestBlocksState & { found: true } =>
@@ -150,7 +165,7 @@ export default function ResearcherBuy() {
 			weight_limit: CALL_WEIGHT,
 			storage_deposit_limit: MAX_STORAGE_DEPOSIT,
 			data: Binary.fromHex(calldata),
-		}).signAndSubmit(currentAccount.signer, { at: "best" });
+		}).signAndSubmit(currentAccount.signer, { at: "best", nonce: await freshNonce() });
 
 		if (!result.ok) {
 			throw new Error(formatDispatchError(result.dispatchError));

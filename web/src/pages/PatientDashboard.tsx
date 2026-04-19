@@ -186,17 +186,34 @@ export default function PatientDashboard() {
 		const descriptor = await getStackTemplateDescriptor();
 		const api = client.getTypedApi(descriptor);
 
+		// Fetch nonce at best block (not finalized) so we see tx-pool-current state.
+		// PAPI's default nonce source is the latest FINALIZED block, which lags the
+		// best block by several seconds on Paseo. If a previous tx (even a reverted
+		// one) landed in best but hasn't finalized, the default picks a stale nonce
+		// and the chain rejects with InvalidTxError::Stale.
+		async function freshNonce(): Promise<number> {
+			const acct = await api.query.System.Account.getValue(currentAccount.address, {
+				at: "best",
+			});
+			return acct.nonce;
+		}
+
 		// pallet-revive requires an AccountId32 ↔ H160 mapping before a contract call.
 		// Dev accounts are pre-mapped via deployment; Nova Wallet accounts are not.
 		const h160 = new FixedSizeBinary(
 			hexToBytes(currentAccount.evmAddress),
 		) as FixedSizeBinary<20>;
-		const existingMapping = await api.query.Revive.OriginalAccount.getValue(h160);
+		const existingMapping = await api.query.Revive.OriginalAccount.getValue(h160, {
+			at: "best",
+		});
 		if (!existingMapping) {
 			setTxStatus("Registering account with pallet-revive (one-time)...");
 			await firstValueFrom(
 				api.tx.Revive.map_account()
-					.signSubmitAndWatch(currentAccount.signer, { at: "best" })
+					.signSubmitAndWatch(currentAccount.signer, {
+						at: "best",
+						nonce: await freshNonce(),
+					})
 					.pipe(
 						filter(
 							(e): e is TxBestBlocksState & { found: true } =>
@@ -216,7 +233,10 @@ export default function PatientDashboard() {
 				storage_deposit_limit: MAX_STORAGE_DEPOSIT,
 				data: Binary.fromHex(calldata),
 			})
-				.signSubmitAndWatch(currentAccount.signer, { at: "best" })
+				.signSubmitAndWatch(currentAccount.signer, {
+					at: "best",
+					nonce: await freshNonce(),
+				})
 				.pipe(
 					filter(
 						(e): e is TxBestBlocksState & { found: true } =>
