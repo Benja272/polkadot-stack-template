@@ -1,47 +1,28 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import hre from "hardhat";
-import { readFileSync } from "fs";
-import { join } from "path";
-import { poseidon4 } from "poseidon-lite";
-import { mulPointEscalar } from "@zk-kit/baby-jubjub";
+import { poseidon2, poseidon4, poseidon16 } from "poseidon-lite";
+import { mulPointEscalar, Base8, order as jubOrder } from "@zk-kit/baby-jubjub";
 
-// Regenerate the fixture with `cd circuits && node test/gen_fixture.mjs` after
-// any change to the circuit or zkey.
-const fixture = JSON.parse(
-	readFileSync(join(__dirname, "fixtures", "phase5_1_proof.json"), "utf8"),
-) as {
-	recordCommit: string;
-	pkBuyerX: string;
-	pkBuyerY: string;
-	orderId: number;
-	a: [string, string];
-	b: [[string, string], [string, string]];
-	c: [string, string];
-	pubSignals: string[];
-	skBuyer: string;
-	ciphertext: string[];
-	expectedRecord: Record<string, string>;
-};
-
-const proofA = fixture.a.map(BigInt) as [bigint, bigint];
-const proofB = fixture.b.map((row) => row.map(BigInt)) as unknown as [
-	[bigint, bigint],
-	[bigint, bigint],
-];
-const proofC = fixture.c.map(BigInt) as [bigint, bigint];
-type PubSignals = [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
-const pubSignals = fixture.pubSignals.map(BigInt) as PubSignals;
-
-// ---- Researcher-side helpers (mirror the browser decrypt path) ----
+// Phase 5.2 — no Groth16 verifier on-chain. The ciphertext is produced off-chain
+// using the same ECDH+Poseidon construction the browser uses; the contract is a
+// pure escrow + signal. The "researcher decrypt" simulation here mirrors what
+// ResearcherBuy.tsx does after fetching the ciphertext from the Statement Store.
 
 const BN254_R = BigInt(
 	"21888242871839275222246405745257275088548364400416034343698204186575808495617",
 );
+const SUB_ORDER = jubOrder >> 3n;
 const N = 32;
 const BYTES_PER_SLOT = 31;
 const RS = 0x1e;
 const US = 0x1f;
+
+function bytesToBigint(bytes: Uint8Array): bigint {
+	let n = 0n;
+	for (const b of bytes) n = (n << 8n) | BigInt(b);
+	return n;
+}
 
 function bigintToBytes(n: bigint, len: number): Uint8Array {
 	const out = new Uint8Array(len);
@@ -50,6 +31,34 @@ function bigintToBytes(n: bigint, len: number): Uint8Array {
 		n >>= 8n;
 	}
 	return out;
+}
+
+function encodeRecord(fields: Record<string, string>): bigint[] {
+	const keys = Object.keys(fields).sort();
+	const enc = new TextEncoder();
+	const parts: Uint8Array[] = [];
+	for (const k of keys) {
+		parts.push(enc.encode(k));
+		parts.push(new Uint8Array([US]));
+		parts.push(enc.encode(String(fields[k])));
+		parts.push(new Uint8Array([RS]));
+	}
+	const totalLen = parts.reduce((s, p) => s + p.length, 0);
+	const bytes = new Uint8Array(totalLen);
+	let o = 0;
+	for (const p of parts) {
+		bytes.set(p, o);
+		o += p.length;
+	}
+	const plaintext: bigint[] = new Array(N).fill(0n);
+	plaintext[0] = BigInt(totalLen);
+	for (let i = 0; i < N - 1; i++) {
+		const start = i * BYTES_PER_SLOT;
+		if (start >= totalLen) break;
+		const end = Math.min(start + BYTES_PER_SLOT, totalLen);
+		plaintext[i + 1] = bytesToBigint(bytes.subarray(start, end));
+	}
+	return plaintext;
 }
 
 function decodeRecord(plaintext: bigint[]): Record<string, string> {
@@ -77,45 +86,89 @@ function decodeRecord(plaintext: bigint[]): Record<string, string> {
 	return fields;
 }
 
-/**
- * Simulate the researcher: given on-chain fulfillment + fetched off-chain
- * ciphertext bytes (here loaded from the fixture), reconstruct the record
- * using the buyer's BabyJubJub secret. This is the JS mirror of the circuit's
- * pad math; it must recover byte-exact the same record the medic signed.
- */
-function researcherDecrypt(
+function hashChain32(inputs: bigint[]): bigint {
+	const h1 = poseidon16(inputs.slice(0, 16));
+	const h2 = poseidon16(inputs.slice(16, 32));
+	return poseidon2([h1, h2]);
+}
+
+function deterministicScalar(seed: number): bigint {
+	// Deterministic per-test BabyJubJub scalar so failures are reproducible.
+	let n = BigInt(seed);
+	for (let i = 0; i < 8; i++) n = (n * 2654435761n + 0x9e3779b97f4a7c15n) & ((1n << 256n) - 1n);
+	return n % SUB_ORDER;
+}
+
+function encryptForBuyer(
+	plaintext: bigint[],
+	pkBuyer: readonly [bigint, bigint],
+	nonce: bigint,
+	ephSk: bigint,
+): { ephPk: [bigint, bigint]; ciphertext: bigint[]; ciphertextHash: bigint } {
+	const ephPkPoint = mulPointEscalar(Base8, ephSk);
+	const ephPk: [bigint, bigint] = [ephPkPoint[0], ephPkPoint[1]];
+	const sharedPoint = mulPointEscalar([pkBuyer[0], pkBuyer[1]], ephSk);
+	const ciphertext = plaintext.map(
+		(p, i) => (p + poseidon4([sharedPoint[0], sharedPoint[1], nonce, BigInt(i)])) % BN254_R,
+	);
+	const ciphertextHash = hashChain32(ciphertext);
+	return { ephPk, ciphertext, ciphertextHash };
+}
+
+function decryptForBuyer(
 	ephPk: readonly [bigint, bigint],
 	ciphertext: bigint[],
 	skBuyer: bigint,
 	nonce: bigint,
 ): Record<string, string> {
-	const shared = mulPointEscalar([ephPk[0], ephPk[1]], skBuyer);
+	const sharedPoint = mulPointEscalar([ephPk[0], ephPk[1]], skBuyer);
 	const plaintext = ciphertext.map(
-		(c, i) => (c - poseidon4([shared[0], shared[1], nonce, BigInt(i)]) + BN254_R) % BN254_R,
+		(c, i) =>
+			(c - poseidon4([sharedPoint[0], sharedPoint[1], nonce, BigInt(i)]) + BN254_R) % BN254_R,
 	);
 	return decodeRecord(plaintext);
 }
 
-describe("MedicalMarket Phase 5.1 (ZKCP + Statement Store)", function () {
+describe("MedicalMarket Phase 5.2 (escrow + signal, off-chain crypto)", function () {
 	const title = "Blood Panel Q1 2025";
 	const price = 1_000_000n;
-	const recordCommit = BigInt(fixture.recordCommit);
-	const pkBuyerX = BigInt(fixture.pkBuyerX);
-	const pkBuyerY = BigInt(fixture.pkBuyerY);
+	const exampleRecord: Record<string, string> = {
+		patientId: "PAT-2024-0047",
+		bloodType: "A+",
+		hba1c: "7.4",
+		country: "FI",
+	};
+	const plaintext = encodeRecord(exampleRecord);
+	const recordCommit = hashChain32(plaintext);
+	// Dummy non-zero medic sig values — the contract only enforces non-zero,
+	// not signature validity. Real signatures are produced by MedicSign.tsx
+	// using @zk-kit/eddsa-poseidon and verified off-chain by the buyer.
+	const medicPkX = 1n;
+	const medicPkY = 2n;
+	const sigR8x = 3n;
+	const sigR8y = 4n;
+	const sigS = 5n;
+
+	const skBuyer = deterministicScalar(1);
+	const pkBuyerPoint = mulPointEscalar(Base8, skBuyer);
+	const pkBuyerX = pkBuyerPoint[0];
+	const pkBuyerY = pkBuyerPoint[1];
+
+	const ephSk = deterministicScalar(2);
 
 	async function deployFixture() {
 		const [patient, researcher] = await hre.viem.getWalletClients();
-		const verifier = await hre.viem.deployContract("Verifier");
-		const market = await hre.viem.deployContract("MedicalMarket", [verifier.address]);
-		return { market, verifier, patient, researcher };
+		const market = await hre.viem.deployContract("MedicalMarket");
+		return { market, patient, researcher };
 	}
 
 	async function deployWithOrder() {
 		const ctx = await deployFixture();
 		const { market, patient, researcher } = ctx;
-		await market.write.createListing([recordCommit, title, price], {
-			account: patient.account,
-		});
+		await market.write.createListing(
+			[recordCommit, medicPkX, medicPkY, sigR8x, sigR8y, sigS, title, price],
+			{ account: patient.account },
+		);
 		await market.write.placeBuyOrder([0n, pkBuyerX, pkBuyerY], {
 			account: researcher.account,
 			value: price,
@@ -123,99 +176,164 @@ describe("MedicalMarket Phase 5.1 (ZKCP + Statement Store)", function () {
 		return ctx;
 	}
 
-	it("createListing + placeBuyOrder + fulfill (golden path)", async function () {
+	it("createListing + placeBuyOrder + fulfill (golden path with researcher decrypt)", async function () {
 		const { market, patient } = await loadFixture(deployWithOrder);
 		const publicClient = await hre.viem.getPublicClient();
 
-		await market.write.fulfill([0n, proofA, proofB, proofC, pubSignals], {
+		const orderId = 0n;
+		const { ephPk, ciphertext, ciphertextHash } = encryptForBuyer(
+			plaintext,
+			[pkBuyerX, pkBuyerY],
+			orderId,
+			ephSk,
+		);
+
+		await market.write.fulfill([orderId, ephPk[0], ephPk[1], ciphertextHash], {
 			account: patient.account,
 		});
 
-		const order = await market.read.getOrder([0n]);
+		const order = await market.read.getOrder([orderId]);
 		expect(order[3]).to.equal(true); // confirmed
 
-		const fulfillment = await market.read.getFulfillment([0n]);
-		expect(fulfillment[0]).to.equal(pubSignals[5]); // ephPkX
-		expect(fulfillment[1]).to.equal(pubSignals[6]); // ephPkY
-		expect(fulfillment[2]).to.equal(pubSignals[7]); // ciphertextHash
+		const fulfillment = await market.read.getFulfillment([orderId]);
+		expect(fulfillment[0]).to.equal(ephPk[0]);
+		expect(fulfillment[1]).to.equal(ephPk[1]);
+		expect(fulfillment[2]).to.equal(ciphertextHash);
 
 		const listing = await market.read.getListing([0n]);
-		expect(listing[4]).to.equal(false); // active flipped off
+		expect(listing[0]).to.equal(recordCommit);
+		expect(listing[1]).to.equal(medicPkX);
+		expect(listing[2]).to.equal(medicPkY);
+		expect(listing[3]).to.equal(sigR8x);
+		expect(listing[9]).to.equal(false); // active flipped off
 
-		// Contract must hold no native balance after settlement.
 		const bal = await publicClient.getBalance({ address: market.address });
 		expect(bal).to.equal(0n);
 
-		// End-to-end simulation: using only on-chain state (ephPk) + off-chain
-		// ciphertext (which in production comes from Statement Store; here from
-		// the fixture) + the researcher's stored BabyJubJub secret, recover the
-		// exact record the medic signed.
-		const ciphertext = fixture.ciphertext.map(BigInt);
-		const skBuyer = BigInt(fixture.skBuyer);
-		const recovered = researcherDecrypt(
+		// Researcher recovers the record using only on-chain ephPk + the
+		// off-chain ciphertext bytes + their stored skBuyer.
+		const recovered = decryptForBuyer(
 			[fulfillment[0], fulfillment[1]],
 			ciphertext,
 			skBuyer,
-			pubSignals[8], // nonce (== orderId)
+			orderId,
 		);
-		expect(recovered).to.deep.equal(fixture.expectedRecord);
+		expect(recovered).to.deep.equal(exampleRecord);
 	});
 
-	it("fulfill reverts on recordCommit mismatch", async function () {
+	it("recordCommit recomputed from decrypted plaintext matches the listing", async function () {
+		// This is the off-chain check that buyers MUST perform after decrypt to
+		// detect a dishonest patient who uploaded garbage to the Statement Store.
 		const { market, patient } = await loadFixture(deployWithOrder);
-		const bad = [...pubSignals] as PubSignals;
-		bad[0] = 42n;
+		const orderId = 0n;
+		const { ephPk, ciphertext, ciphertextHash } = encryptForBuyer(
+			plaintext,
+			[pkBuyerX, pkBuyerY],
+			orderId,
+			ephSk,
+		);
+		await market.write.fulfill([orderId, ephPk[0], ephPk[1], ciphertextHash], {
+			account: patient.account,
+		});
+		const fulfillment = await market.read.getFulfillment([orderId]);
+		const listing = await market.read.getListing([0n]);
+
+		const sharedPoint = mulPointEscalar([fulfillment[0], fulfillment[1]], skBuyer);
+		const recoveredPlaintext = ciphertext.map(
+			(c, i) =>
+				(c - poseidon4([sharedPoint[0], sharedPoint[1], orderId, BigInt(i)]) + BN254_R) %
+				BN254_R,
+		);
+		const recomputedCommit = hashChain32(recoveredPlaintext);
+		expect(recomputedCommit).to.equal(listing[0]);
+	});
+
+	it("fulfill reverts when caller is not the patient", async function () {
+		const { market, researcher } = await loadFixture(deployWithOrder);
+		const orderId = 0n;
+		const { ephPk, ciphertextHash } = encryptForBuyer(
+			plaintext,
+			[pkBuyerX, pkBuyerY],
+			orderId,
+			ephSk,
+		);
 		try {
-			await market.write.fulfill([0n, proofA, proofB, proofC, bad], {
-				account: patient.account,
+			await market.write.fulfill([orderId, ephPk[0], ephPk[1], ciphertextHash], {
+				account: researcher.account,
 			});
 			expect.fail("Should have reverted");
 		} catch (e: unknown) {
-			expect((e as Error).message).to.include("recordCommit mismatch");
+			expect((e as Error).message).to.include("Only the patient can fulfill the order");
 		}
 	});
 
-	it("fulfill reverts on pkBuyer mismatch", async function () {
+	it("fulfill reverts on second call (already confirmed)", async function () {
 		const { market, patient } = await loadFixture(deployWithOrder);
-		const bad = [...pubSignals] as PubSignals;
-		bad[3] = pubSignals[3] + 1n;
+		const orderId = 0n;
+		const { ephPk, ciphertextHash } = encryptForBuyer(
+			plaintext,
+			[pkBuyerX, pkBuyerY],
+			orderId,
+			ephSk,
+		);
+		await market.write.fulfill([orderId, ephPk[0], ephPk[1], ciphertextHash], {
+			account: patient.account,
+		});
 		try {
-			await market.write.fulfill([0n, proofA, proofB, proofC, bad], {
+			await market.write.fulfill([orderId, ephPk[0], ephPk[1], ciphertextHash], {
 				account: patient.account,
 			});
 			expect.fail("Should have reverted");
 		} catch (e: unknown) {
-			expect((e as Error).message).to.include("pkBuyerX mismatch");
+			expect((e as Error).message).to.include("Order already fulfilled");
 		}
 	});
 
-	it("fulfill reverts when nonce != orderId", async function () {
-		const { market, patient } = await loadFixture(deployWithOrder);
-		const bad = [...pubSignals] as PubSignals;
-		bad[8] = 99n;
+	it("fulfill reverts on cancelled order", async function () {
+		const { market, patient, researcher } = await loadFixture(deployWithOrder);
+		await market.write.cancelOrder([0n], { account: researcher.account });
+		const orderId = 0n;
+		const { ephPk, ciphertextHash } = encryptForBuyer(
+			plaintext,
+			[pkBuyerX, pkBuyerY],
+			orderId,
+			ephSk,
+		);
 		try {
-			await market.write.fulfill([0n, proofA, proofB, proofC, bad], {
+			await market.write.fulfill([orderId, ephPk[0], ephPk[1], ciphertextHash], {
 				account: patient.account,
 			});
 			expect.fail("Should have reverted");
 		} catch (e: unknown) {
-			expect((e as Error).message).to.include("nonce must equal orderId");
+			expect((e as Error).message).to.include("Order is cancelled");
 		}
 	});
 
-	it("fulfill reverts when an informational pubSignal is tampered (proof invalid)", async function () {
+	it("fulfill reverts when ciphertextHash is zero", async function () {
 		const { market, patient } = await loadFixture(deployWithOrder);
-		// medicPkX is pubSignals[1] — no contract-level require guards it, so the
-		// call reaches verifyProof and fails in the Groth16 pairing check.
-		const bad = [...pubSignals] as PubSignals;
-		bad[1] = pubSignals[1] + 1n;
+		const { ephPk } = encryptForBuyer(plaintext, [pkBuyerX, pkBuyerY], 0n, ephSk);
 		try {
-			await market.write.fulfill([0n, proofA, proofB, proofC, bad], {
-				account: patient.account,
+			await market.write.fulfill([0n, ephPk[0], ephPk[1], 0n], { account: patient.account });
+			expect.fail("Should have reverted");
+		} catch (e: unknown) {
+			expect((e as Error).message).to.include("ciphertextHash must be non-zero");
+		}
+	});
+
+	it("placeBuyOrder reverts on insufficient payment", async function () {
+		const { market, patient, researcher } = await deployFixture();
+		await market.write.createListing(
+			[recordCommit, medicPkX, medicPkY, sigR8x, sigR8y, sigS, title, price],
+			{ account: patient.account },
+		);
+		try {
+			await market.write.placeBuyOrder([0n, pkBuyerX, pkBuyerY], {
+				account: researcher.account,
+				value: price - 1n,
 			});
 			expect.fail("Should have reverted");
 		} catch (e: unknown) {
-			expect((e as Error).message).to.include("ZK proof invalid");
+			expect((e as Error).message).to.include("Insufficient payment");
 		}
 	});
 
@@ -227,5 +345,32 @@ describe("MedicalMarket Phase 5.1 (ZKCP + Statement Store)", function () {
 		expect(order[4]).to.equal(true); // cancelled
 		const bal = await publicClient.getBalance({ address: market.address });
 		expect(bal).to.equal(0n);
+	});
+
+	it("cancelListing succeeds before any order, blocked after", async function () {
+		const { market, patient, researcher } = await deployFixture();
+		await market.write.createListing(
+			[recordCommit, medicPkX, medicPkY, sigR8x, sigR8y, sigS, title, price],
+			{ account: patient.account },
+		);
+		await market.write.cancelListing([0n], { account: patient.account });
+		const listing = await market.read.getListing([0n]);
+		expect(listing[9]).to.equal(false);
+
+		// New listing, then place order, then cancel must fail.
+		await market.write.createListing(
+			[recordCommit, medicPkX, medicPkY, sigR8x, sigR8y, sigS, title, price],
+			{ account: patient.account },
+		);
+		await market.write.placeBuyOrder([1n, pkBuyerX, pkBuyerY], {
+			account: researcher.account,
+			value: price,
+		});
+		try {
+			await market.write.cancelListing([1n], { account: patient.account });
+			expect.fail("Should have reverted");
+		} catch (e: unknown) {
+			expect((e as Error).message).to.include("pending order");
+		}
 	});
 });

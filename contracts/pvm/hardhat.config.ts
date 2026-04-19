@@ -17,8 +17,6 @@ const config: HardhatUserConfig = {
 	solidity: {
 		version: "0.8.28",
 		settings: {
-			// Required for the Verifier contract: pure-Solidity BN254 verifier hits
-			// the 16-variable stack limit without IR-based codegen.
 			viaIR: true,
 			optimizer: { enabled: true, runs: 200 },
 		},

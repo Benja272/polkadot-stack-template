@@ -11,13 +11,13 @@ function updateDeployments(updates: Record<string, string>) {
 		evm: null,
 		pvm: null,
 		medicalMarket: null,
-		verifier: null,
 	};
 	try {
 		data = JSON.parse(fs.readFileSync(DEPLOYMENTS_JSON, "utf-8"));
 	} catch {
 		// File doesn't exist yet
 	}
+	delete data.verifier;
 	for (const [key, address] of Object.entries(updates)) {
 		data[key] = address;
 	}
@@ -30,12 +30,10 @@ export const deployments: {
 \tevm: string | null;
 \tpvm: string | null;
 \tmedicalMarket: string | null;
-\tverifier: string | null;
 } = {
 \tevm: ${fmt(data.evm ?? null)},
 \tpvm: ${fmt(data.pvm ?? null)},
 \tmedicalMarket: ${fmt(data.medicalMarket ?? null)},
-\tverifier: ${fmt(data.verifier ?? null)},
 };
 `;
 	fs.writeFileSync(DEPLOYMENTS_TS, ts);
@@ -68,17 +66,11 @@ async function main() {
 	const [walletClient] = await hre.viem.getWalletClients(chainOption);
 	const publicClient = await hre.viem.getPublicClient(chainOption);
 
-	console.log("Deploying Verifier (PVM/resolc)...");
-	const verifierAddress = await deployContract(walletClient, publicClient, "Verifier");
-	console.log(`Verifier deployed to: ${verifierAddress}`);
-
 	console.log("Deploying MedicalMarket (PVM/resolc)...");
-	const marketAddress = await deployContract(walletClient, publicClient, "MedicalMarket", [
-		verifierAddress,
-	]);
+	const marketAddress = await deployContract(walletClient, publicClient, "MedicalMarket");
 	console.log(`MedicalMarket deployed to: ${marketAddress}`);
 
-	updateDeployments({ medicalMarket: marketAddress, verifier: verifierAddress });
+	updateDeployments({ medicalMarket: marketAddress });
 	console.log("Updated deployments.json and web/src/config/deployments.ts");
 }
 

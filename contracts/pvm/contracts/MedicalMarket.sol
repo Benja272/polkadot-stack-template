@@ -1,41 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-interface IVerifier {
-	function verifyProof(
-		uint256[2] calldata a,
-		uint256[2][2] calldata b,
-		uint256[2] calldata c,
-		uint256[9] calldata pubSignals
-	) external view returns (bool);
-}
-
-/// @title MedicalMarket — Phase 5.1
-/// @notice Atomic ZKCP marketplace. The patient's Groth16 proof attests that
-///         a ciphertext (uploaded separately to the Statement Store)
-///         decrypts — under the buyer's BabyJubJub secret key, via ECDH —
-///         to the exact record the medic signed at listing time. The proof
-///         is verified and payment released in a single transaction.
+/// @title MedicalMarket — Phase 5.2
+/// @notice Encrypted-data marketplace with off-chain cryptographic verification.
+///         Patient encrypts the medic-signed record for the buyer's BabyJubJub
+///         public key (ECDH + Poseidon stream cipher) off-chain, uploads the
+///         ciphertext bytes to the Statement Store, and calls fulfill() with the
+///         ephemeral pk + ciphertextHash. The contract is a pure escrow + signal
+///         layer: no on-chain ZK proof, no in-circuit binding. The medic's
+///         EdDSA-Poseidon signature over recordCommit is published with the
+///         listing so any researcher can verify the signing medic before paying;
+///         buyers verify (sig, recordCommit, decrypted plaintext) off-chain
+///         after fetching the ciphertext.
 ///
-///         pubSignals layout (enforced in fulfill):
-///           [0] recordCommit    — must match listing.recordCommit
-///           [1] medicPkX        — informational (identity off-chain)
-///           [2] medicPkY        — informational
-///           [3] pkBuyerX        — must match order.pkBuyerX
-///           [4] pkBuyerY        — must match order.pkBuyerY
-///           [5] ephPkX          — stored for buyer to reconstruct shared secret
-///           [6] ephPkY
-///           [7] ciphertextHash  — Statement Store lookup key (Poseidon of ciphertext[32])
-///           [8] nonce           — must equal orderId
+///         Atomicity is relaxed: a dishonest patient could upload garbage to the
+///         Statement Store. The buyer detects this by recomputing
+///         HashChain32(plaintext) and comparing against listing.recordCommit.
+///         Phase 5.3 (planned) adds an escrow / acknowledge / reclaim window so
+///         a buyer who can't decrypt can recover their payment.
 contract MedicalMarket {
-	address public verifier;
-
-	constructor(address _verifier) {
-		verifier = _verifier;
-	}
-
 	struct Listing {
-		uint256 recordCommit; // Poseidon(plaintext[32]) of the medic-signed record
+		uint256 recordCommit; // Poseidon(plaintext[32]) — what the medic signed
+		uint256 medicPkX; // medic's BabyJubJub pubkey (EdDSA-Poseidon)
+		uint256 medicPkY;
+		uint256 sigR8x; // medic's EdDSA signature over recordCommit
+		uint256 sigR8y;
+		uint256 sigS;
 		string title; // human-readable label shown before buying
 		uint256 price; // minimum price in wei (native PAS)
 		address patient;
@@ -55,7 +45,7 @@ contract MedicalMarket {
 	struct Fulfillment {
 		uint256 ephPkX; // patient's ephemeral pubkey; buyer reconstructs shared secret
 		uint256 ephPkY;
-		uint256 ciphertextHash; // Statement Store lookup + binding commitment
+		uint256 ciphertextHash; // Statement Store lookup key (Poseidon of ciphertext[32])
 	}
 
 	mapping(uint256 => Listing) private listings;
@@ -73,6 +63,8 @@ contract MedicalMarket {
 		address indexed patient,
 		uint256 indexed listingId,
 		uint256 recordCommit,
+		uint256 medicPkX,
+		uint256 medicPkY,
 		string title,
 		uint256 price
 	);
@@ -101,21 +93,40 @@ contract MedicalMarket {
 		uint256 amount
 	);
 
-	/// @notice Create a listing. `recordCommit` is Poseidon(plaintext[32]) — the medic signed it.
-	function createListing(uint256 recordCommit, string calldata title, uint256 price) external {
+	/// @notice Create a listing. recordCommit is Poseidon-chained over the
+	///         medic-signed plaintext[32]; the medic's pubkey + EdDSA signature
+	///         over recordCommit are published so any researcher can pre-verify
+	///         "a known medic signed this commit" before paying.
+	function createListing(
+		uint256 recordCommit,
+		uint256 medicPkX,
+		uint256 medicPkY,
+		uint256 sigR8x,
+		uint256 sigR8y,
+		uint256 sigS,
+		string calldata title,
+		uint256 price
+	) external {
 		require(price > 0, "Price must be greater than zero");
 		require(bytes(title).length > 0, "Title cannot be empty");
 		require(recordCommit != 0, "recordCommit must be non-zero");
+		require(medicPkX != 0 || medicPkY != 0, "medicPk must be non-zero");
+		require(sigS != 0, "signature must be non-zero");
 		uint256 listingId = listingCount;
 		listings[listingId] = Listing({
 			recordCommit: recordCommit,
+			medicPkX: medicPkX,
+			medicPkY: medicPkY,
+			sigR8x: sigR8x,
+			sigR8y: sigR8y,
+			sigS: sigS,
 			title: title,
 			price: price,
 			patient: msg.sender,
 			active: true
 		});
 		listingCount++;
-		emit ListingCreated(msg.sender, listingId, recordCommit, title, price);
+		emit ListingCreated(msg.sender, listingId, recordCommit, medicPkX, medicPkY, title, price);
 	}
 
 	/// @notice Lock native PAS and register the buyer's BabyJubJub pubkey.
@@ -142,13 +153,14 @@ contract MedicalMarket {
 		emit OrderPlaced(listingId, orderId, msg.sender, msg.value, pkBuyerX, pkBuyerY);
 	}
 
-	/// @notice Atomically verify the ZK proof, persist the commitment, release payment.
+	/// @notice Patient declares the ephemeral pk + Statement Store ciphertext
+	///         hash and releases payment. No on-chain proof: the buyer verifies
+	///         signature + recordCommit off-chain after decryption.
 	function fulfill(
 		uint256 orderId,
-		uint256[2] calldata a,
-		uint256[2][2] calldata b,
-		uint256[2] calldata c,
-		uint256[9] calldata pubSignals
+		uint256 ephPkX,
+		uint256 ephPkY,
+		uint256 ciphertextHash
 	) external {
 		require(orderId < orderCount, "Order does not exist");
 		Order storage order = orders[orderId];
@@ -157,20 +169,16 @@ contract MedicalMarket {
 
 		Listing storage listing = listings[order.listingId];
 		require(msg.sender == listing.patient, "Only the patient can fulfill the order");
-
-		require(pubSignals[0] == listing.recordCommit, "recordCommit mismatch");
-		require(pubSignals[3] == order.pkBuyerX, "pkBuyerX mismatch");
-		require(pubSignals[4] == order.pkBuyerY, "pkBuyerY mismatch");
-		require(pubSignals[8] == orderId, "nonce must equal orderId");
-		require(IVerifier(verifier).verifyProof(a, b, c, pubSignals), "ZK proof invalid");
+		require(ephPkX != 0 || ephPkY != 0, "ephPk must be non-zero");
+		require(ciphertextHash != 0, "ciphertextHash must be non-zero");
 
 		order.confirmed = true;
 		listing.active = false;
 
 		fulfillments[orderId] = Fulfillment({
-			ephPkX: pubSignals[5],
-			ephPkY: pubSignals[6],
-			ciphertextHash: pubSignals[7]
+			ephPkX: ephPkX,
+			ephPkY: ephPkY,
+			ciphertextHash: ciphertextHash
 		});
 
 		(bool successPatient, ) = listing.patient.call{value: listing.price}("");
@@ -187,9 +195,9 @@ contract MedicalMarket {
 			order.listingId,
 			listing.patient,
 			order.researcher,
-			pubSignals[5],
-			pubSignals[6],
-			pubSignals[7]
+			ephPkX,
+			ephPkY,
+			ciphertextHash
 		);
 	}
 
@@ -227,6 +235,11 @@ contract MedicalMarket {
 		view
 		returns (
 			uint256 recordCommit,
+			uint256 medicPkX,
+			uint256 medicPkY,
+			uint256 sigR8x,
+			uint256 sigR8y,
+			uint256 sigS,
 			string memory title,
 			uint256 price,
 			address patient,
@@ -234,7 +247,18 @@ contract MedicalMarket {
 		)
 	{
 		Listing storage l = listings[id];
-		return (l.recordCommit, l.title, l.price, l.patient, l.active);
+		return (
+			l.recordCommit,
+			l.medicPkX,
+			l.medicPkY,
+			l.sigR8x,
+			l.sigR8y,
+			l.sigS,
+			l.title,
+			l.price,
+			l.patient,
+			l.active
+		);
 	}
 
 	function getListingCount() external view returns (uint256) {
@@ -268,7 +292,7 @@ contract MedicalMarket {
 		);
 	}
 
-	/// @notice ephemeral pk + Statement Store lookup/binding hash for a fulfilled order.
+	/// @notice ephemeral pk + Statement Store lookup hash for a fulfilled order.
 	function getFulfillment(
 		uint256 orderId
 	) external view returns (uint256 ephPkX, uint256 ephPkY, uint256 ciphertextHash) {
