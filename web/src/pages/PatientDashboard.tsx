@@ -398,6 +398,48 @@ export default function PatientDashboard() {
 			const { generateProofForField } = await import("../utils/zk");
 			const zkProof = await generateProofForField(pkg, selectedField);
 
+			// ---- ZK fulfill diagnostic dump ---------------------------------------
+			// Revive.ContractReverted swallows the Solidity revert reason, so we log
+			// every value that fulfill() asserts on, to narrow down which `require`
+			// tripped. Remove once the fulfill flow is reliably green.
+			try {
+				const publicClient = getPublicClient(ethRpcUrl);
+				const addr = contractAddress as Address;
+				const listingResult = (await publicClient.readContract({
+					address: addr,
+					abi: medicalMarketAbi,
+					functionName: "getListing",
+					args: [listingId],
+				})) as [string, string, string, bigint, string, boolean];
+				const [onChainMerkleRoot, statementHash, , , onChainPatient] = listingResult;
+				const pubSignal0Hex = `0x${zkProof.pubSignals[0].toString(16).padStart(64, "0")}`;
+				console.log("[fulfill] diagnostic dump", {
+					orderId: orderId.toString(),
+					listingId: listingId.toString(),
+					caller_evmAddress: currentAccount.evmAddress,
+					onChain_patient: onChainPatient,
+					caller_matches_patient:
+						currentAccount.evmAddress.toLowerCase() === onChainPatient.toLowerCase(),
+					onChain_merkleRoot: onChainMerkleRoot,
+					pubSignals_0_as_bytes32: pubSignal0Hex,
+					merkleRoot_matches_pubSignal0:
+						onChainMerkleRoot.toLowerCase() === pubSignal0Hex.toLowerCase(),
+					pubSignals_raw: zkProof.pubSignals.map((x) => x.toString()),
+					proof_a: zkProof.a.map((x) => x.toString()),
+					proof_b: zkProof.b.map((row) => row.map((x) => x.toString())),
+					proof_c: zkProof.c.map((x) => x.toString()),
+					deployments_verifier: deployments.verifier,
+					note:
+						"medicalMarketAbi has no `verifier()` entry; compare deployments_verifier " +
+						"manually via `cast call <MedicalMarket> 'verifier()(address)' --rpc-url ...`",
+					statementHash,
+					decryption_keyHex: keyHex,
+				});
+			} catch (diagErr) {
+				console.warn("[fulfill] diagnostic dump failed:", diagErr);
+			}
+			// ------------------------------------------------------------------------
+
 			setTxStatus("Submitting proof and decryption key on-chain...");
 			const { txHash } = await reviveCall("fulfill", [
 				orderId,
