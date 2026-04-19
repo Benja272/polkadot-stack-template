@@ -4,7 +4,7 @@ import { Binary, FixedSizeBinary, type TxBestBlocksState } from "polkadot-api";
 import { filter, firstValueFrom } from "rxjs";
 import { medicalMarketAbi, getPublicClient } from "../config/evm";
 import { deployments } from "../config/deployments";
-import { fetchStatements } from "../hooks/useStatementStore";
+import { subscribeStatements } from "../hooks/useStatementStore";
 import { devAccounts, getAccountsWithFallback, type AppAccount } from "../hooks/useAccount";
 import { getClient } from "../hooks/useChain";
 import { getStackTemplateDescriptor } from "../hooks/useConnection";
@@ -67,6 +67,13 @@ export default function ResearcherBuy() {
 	const [txStatus, setTxStatus] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [retrievedData, setRetrievedData] = useState<Record<string, RetrievedData>>({});
+	const [stmtCache, setStmtCache] = useState<Map<string, Uint8Array>>(new Map());
+
+	// Subscribe to statement store (live in Host, one-shot dump in local dev)
+	useEffect(() => {
+		const { unsubscribe } = subscribeStatements(wsUrl, setStmtCache);
+		return unsubscribe;
+	}, [wsUrl]);
 
 	// Load accounts: Nova Wallet → browser extension → dev fallback
 	useEffect(() => {
@@ -303,18 +310,12 @@ export default function ResearcherBuy() {
 				return;
 			}
 
-			setTxStatus("Fetching encrypted data from Statement Store...");
-			const statements = await fetchStatements(wsUrl);
-			const match = statements.find((s) => s.hash === statementHash);
-
-			if (!match) {
+			setTxStatus("Looking up encrypted data in statement cache...");
+			const data = stmtCache.get(statementHash);
+			if (!data) {
 				setTxStatus(
-					`Error: No statement found with hash ${statementHash.slice(0, 10)}... in the Statement Store.`,
+					`Error: Statement ${statementHash.slice(0, 10)}… not found yet. Wait for the subscription to deliver it.`,
 				);
-				return;
-			}
-			if (!match.data) {
-				setTxStatus("Error: Statement has no data payload.");
 				return;
 			}
 
@@ -323,8 +324,8 @@ export default function ResearcherBuy() {
 			const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, [
 				"decrypt",
 			]);
-			const iv = match.data.slice(0, 12);
-			const ciphertext = match.data.slice(12);
+			const iv = data.slice(0, 12);
+			const ciphertext = data.slice(12);
 			const plaintextBuf = await crypto.subtle.decrypt(
 				{ name: "AES-GCM", iv },
 				cryptoKey,

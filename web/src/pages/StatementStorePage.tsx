@@ -1,41 +1,17 @@
 import { useState, useEffect } from "react";
 import { useChainStore } from "../store/chainStore";
-import {
-	checkStatementStoreAvailable,
-	fetchStatements,
-	type DecodedStatement,
-} from "../hooks/useStatementStore";
+import { subscribeStatements } from "../hooks/useStatementStore";
 
 export default function StatementStorePage() {
 	const wsUrl = useChainStore((s) => s.wsUrl);
-	const [available, setAvailable] = useState<boolean | null>(null);
-	const [statements, setStatements] = useState<DecodedStatement[]>([]);
-	const [loading, setLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const [cache, setCache] = useState<Map<string, Uint8Array>>(new Map());
 
 	useEffect(() => {
-		checkStatementStoreAvailable(wsUrl).then((ok) => {
-			setAvailable(ok);
-			if (ok) loadStatements();
-		});
-	}, [wsUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+		const { unsubscribe } = subscribeStatements(wsUrl, setCache);
+		return unsubscribe;
+	}, [wsUrl]);
 
-	async function loadStatements() {
-		try {
-			setLoading(true);
-			setError(null);
-			const result = await fetchStatements(wsUrl);
-			setStatements(result);
-		} catch (e) {
-			console.error("Failed to fetch statements:", e);
-			setError(e instanceof Error ? e.message : String(e));
-		} finally {
-			setLoading(false);
-		}
-	}
-
-	function tryDecodeUtf8(data: Uint8Array | null): string | null {
-		if (!data) return null;
+	function tryDecodeUtf8(data: Uint8Array): string | null {
 		try {
 			const text = new TextDecoder("utf-8", { fatal: true }).decode(data);
 			if (/^[\x20-\x7e\t\n\r]+$/.test(text)) return text;
@@ -111,126 +87,48 @@ export default function StatementStorePage() {
 		URL.revokeObjectURL(url);
 	}
 
-	if (available === null) {
-		return (
-			<div className="space-y-6 animate-fade-in">
-				<h1 className="page-title text-accent-orange">Statement Store</h1>
-				<p className="text-text-muted text-sm">Checking availability...</p>
-			</div>
-		);
-	}
-
-	if (!available) {
-		return (
-			<div className="space-y-6 animate-fade-in">
-				<h1 className="page-title text-accent-orange">Statement Store</h1>
-				<p className="text-text-secondary">
-					View statements stored in the node's local Statement Store.
-				</p>
-				<div className="card">
-					<p className="text-text-muted text-sm">
-						The connected node does not expose Statement Store RPCs. In polkadot-sdk
-						stable2512-3, the statement store is only available in the relay-backed
-						path. Use{" "}
-						<code className="text-text-secondary font-mono text-xs">
-							./scripts/start-all.sh
-						</code>{" "}
-						to start the full environment, or{" "}
-						<code className="text-text-secondary font-mono text-xs">
-							./scripts/start-local.sh
-						</code>{" "}
-						for just the relay-backed network.
-					</p>
-				</div>
-			</div>
-		);
-	}
+	const entries = Array.from(cache.entries());
 
 	return (
 		<div className="space-y-6 animate-fade-in">
 			<div className="space-y-2">
 				<h1 className="page-title text-accent-orange">Statement Store</h1>
 				<p className="text-text-secondary">
-					View statements stored in the node's local Statement Store. Statements are
-					off-chain data propagated across the peer-to-peer network.
+					View statements stored in the statement store. Inside the Polkadot Host,
+					statements arrive via live subscription. In local dev, a one-shot dump is
+					performed.
 				</p>
 			</div>
 
 			<div className="card space-y-4">
-				<div className="flex items-center justify-between">
-					<h2 className="section-title">
-						Statements{" "}
-						<span className="text-text-muted text-sm font-normal">
-							({statements.length})
-						</span>
-					</h2>
-					<button
-						onClick={loadStatements}
-						disabled={loading}
-						className="btn-secondary text-xs"
-					>
-						{loading ? "Loading..." : "Refresh"}
-					</button>
-				</div>
+				<h2 className="section-title">
+					Statements{" "}
+					<span className="text-text-muted text-sm font-normal">({entries.length})</span>
+				</h2>
 
-				{error && <p className="text-accent-red text-sm font-medium">{error}</p>}
-
-				{statements.length === 0 && !loading && !error && (
-					<p className="text-text-muted text-sm">No statements in the store.</p>
+				{entries.length === 0 && (
+					<p className="text-text-muted text-sm">
+						No statements in the store yet. Create a listing on the Patient Dashboard to
+						populate the store.
+					</p>
 				)}
 
 				<div className="space-y-2">
-					{statements.map((stmt, i) => {
-						const textPreview = tryDecodeUtf8(stmt.data);
+					{entries.map(([hash, data]) => {
+						const textPreview = tryDecodeUtf8(data);
 						return (
 							<div
-								key={i}
+								key={hash}
 								className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 text-sm space-y-1.5"
 							>
 								<p className="font-mono text-xs text-text-secondary break-all">
-									{stmt.hash}
+									{hash}
 								</p>
 								<p className="text-text-tertiary">
-									{stmt.proofType && (
-										<>
-											Proof:{" "}
-											<span className="text-text-secondary">
-												{stmt.proofType}
-											</span>{" "}
-											|{" "}
-										</>
-									)}
-									{stmt.signer && (
-										<>
-											Signer:{" "}
-											<span className="text-text-secondary font-mono text-xs">
-												{stmt.signer.slice(0, 10)}...{stmt.signer.slice(-6)}
-											</span>{" "}
-											|{" "}
-										</>
-									)}
 									Data:{" "}
 									<span className="text-text-secondary">
-										{stmt.dataLength.toLocaleString()} bytes
+										{data.length.toLocaleString()} bytes
 									</span>
-									{stmt.topics.length > 0 && (
-										<>
-											{" "}
-											| Topics:{" "}
-											<span className="text-text-secondary">
-												{stmt.topics.length}
-											</span>
-										</>
-									)}
-									{stmt.priority !== null && (
-										<>
-											{" "}
-											| Priority:{" "}
-											<span className="text-text-secondary">
-												{stmt.priority}
-											</span>
-										</>
-									)}
 								</p>
 								{textPreview && (
 									<pre className="text-xs text-text-muted rounded-md border border-white/[0.04] bg-white/[0.02] px-2 py-1.5 mt-1.5 overflow-x-auto max-h-24 font-mono">
@@ -239,14 +137,12 @@ export default function StatementStorePage() {
 											: textPreview}
 									</pre>
 								)}
-								{stmt.data && (
-									<button
-										onClick={() => downloadData(stmt.data!, stmt.hash)}
-										className="mt-1 btn-secondary text-xs py-1"
-									>
-										Download
-									</button>
-								)}
+								<button
+									onClick={() => downloadData(data, hash)}
+									className="mt-1 btn-secondary text-xs py-1"
+								>
+									Download
+								</button>
 							</div>
 						);
 					})}

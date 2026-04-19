@@ -5,7 +5,11 @@ import { filter, firstValueFrom } from "rxjs";
 import { blake2b } from "blakejs";
 import { medicalMarketAbi, getPublicClient } from "../config/evm";
 import { deployments } from "../config/deployments";
-import { submitToStatementStore, checkStatementStoreAvailable } from "../hooks/useStatementStore";
+import {
+	submitStatement,
+	checkStatementStoreAvailable,
+	MARKETPLACE_ACCOUNT_ID,
+} from "../hooks/useStatementStore";
 import { devAccounts, getAccountsWithFallback, type AppAccount } from "../hooks/useAccount";
 import { getClient } from "../hooks/useChain";
 import { getStackTemplateDescriptor } from "../hooks/useConnection";
@@ -312,17 +316,20 @@ export default function PatientDashboard() {
 			setTxStatus("Encrypting signed record...");
 			const { encrypted, keyHex } = await encryptData(fileBytes);
 
-			const ciphertextHash = bytesToHex(blake2b(encrypted, undefined, 32));
+			const ciphertextHash32 = blake2b(encrypted, undefined, 32);
+			const ciphertextHash = bytesToHex(ciphertextHash32);
 
 			setTxStatus("Submitting encrypted data to Statement Store...");
 			// Use localSigner when present — Nova Wallet's signRaw adds a <Bytes>
 			// prefix that the substrate statement store rejects.
 			const stmtSigner = currentAccount.localSigner ?? currentAccount.signer;
-			await submitToStatementStore(
+			await submitStatement(
 				wsUrl,
 				encrypted,
-				stmtSigner.publicKey,
-				stmtSigner.signBytes,
+				ciphertextHash32,
+				MARKETPLACE_ACCOUNT_ID,
+				stmtSigner.publicKey, // ignored in Host mode
+				stmtSigner.signBytes, // ignored in Host mode
 			);
 
 			setTxStatus("Creating listing on-chain...");

@@ -1,5 +1,41 @@
+import {
+	createStatementStore,
+	type Statement,
+	type SignedStatement,
+} from "@novasamatech/product-sdk";
 import { Bytes, compact, u8 } from "@polkadot-api/substrate-bindings";
 import { blake2b } from "blakejs";
+
+// ---------------------------------------------------------------------------
+// SDK constants
+// ---------------------------------------------------------------------------
+
+const MARKETPLACE_NS_ID = "own-your-medical-records42.dot";
+export const MARKETPLACE_ACCOUNT_ID: [string, number] = [MARKETPLACE_NS_ID, 0];
+
+function stringToTopic(s: string): Uint8Array {
+	return blake2b(new TextEncoder().encode(s), undefined, 32);
+}
+
+const GLOBAL_TOPIC = stringToTopic("medical-marketplace-v1");
+const LISTINGS_CHANNEL = stringToTopic("medical-marketplace-listings");
+
+function isInHost(): boolean {
+	if (typeof window === "undefined") return false;
+	if ((window as { __HOST_WEBVIEW_MARK__?: boolean }).__HOST_WEBVIEW_MARK__) return true;
+	try {
+		return window !== window.top;
+	} catch {
+		return true;
+	}
+}
+
+let _store: ReturnType<typeof createStatementStore> | null = null;
+const getStore = () => (_store ??= createStatementStore());
+
+// ---------------------------------------------------------------------------
+// Raw-RPC SCALE helpers (local-dev path — kept verbatim)
+// ---------------------------------------------------------------------------
 
 const MAX_STATEMENT_STORE_ENCODED_SIZE = 1024 * 1024 - 1;
 const FIELD_TAG_AUTH = 0;
@@ -80,6 +116,10 @@ function bytesToHex(bytes: Uint8Array): string {
 		.join("");
 }
 
+function _toHex(bytes: Uint8Array): string {
+	return bytesToHex(bytes);
+}
+
 /**
  * Convert a ws:// or wss:// URL to http:// or https:// for JSON-RPC POST.
  */
@@ -87,10 +127,11 @@ function wsToHttp(wsUrl: string): string {
 	return wsUrl.replace(/^ws(s?):\/\//, "http$1://");
 }
 
-/**
- * Check if the node exposes the Statement Store RPC methods.
- */
-export async function checkStatementStoreAvailable(wsUrl: string): Promise<boolean> {
+// ---------------------------------------------------------------------------
+// Private raw-RPC implementations (local-dev fallback)
+// ---------------------------------------------------------------------------
+
+async function _rawCheckRpc(wsUrl: string): Promise<boolean> {
 	const httpUrl = wsToHttp(wsUrl);
 	try {
 		const response = await fetch(httpUrl, {
@@ -111,13 +152,7 @@ export async function checkStatementStoreAvailable(wsUrl: string): Promise<boole
 	}
 }
 
-/**
- * Submit file bytes to the local node's Statement Store.
- *
- * Builds a canonical SCALE-encoded sp_statement_store::Statement and
- * calls the `statement_submit` JSON-RPC method via HTTP POST.
- */
-export async function submitToStatementStore(
+async function _rawSubmit(
 	wsUrl: string,
 	fileBytes: Uint8Array,
 	publicKey: Uint8Array,
@@ -268,11 +303,7 @@ function decodeStatement(encoded: Uint8Array): Omit<DecodedStatement, "hash"> {
 	return { signer, proofType, data, dataLength, topics, priority };
 }
 
-/**
- * Fetch all statements from the node via the statement_dump JSON-RPC method.
- * Returns hex-encoded SCALE statements which are decoded client-side.
- */
-export async function fetchStatements(wsUrl: string): Promise<DecodedStatement[]> {
+async function _rawFetch(wsUrl: string): Promise<DecodedStatement[]> {
 	const httpUrl = wsToHttp(wsUrl);
 	const response = await fetch(httpUrl, {
 		method: "POST",
@@ -300,4 +331,110 @@ export async function fetchStatements(wsUrl: string): Promise<DecodedStatement[]
 		const hash = "0x" + bytesToHex(blake2b(hashSource, undefined, 32));
 		return { hash, ...decoded };
 	});
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if the statement store is accessible.
+ * Inside the Host shell this always returns true — the Host handles transport.
+ */
+export async function checkStatementStoreAvailable(wsUrl: string): Promise<boolean> {
+	if (isInHost()) return true;
+	return _rawCheckRpc(wsUrl);
+}
+
+/**
+ * Submit encrypted data to the statement store.
+ *
+ * - Inside Host: uses SDK `createProof` + `submit` with a 10-second timeout.
+ * - Outside Host (local dev): uses the raw JSON-RPC path (requires `publicKey` + `sign`).
+ */
+export async function submitStatement(
+	wsUrl: string,
+	encrypted: Uint8Array,
+	ciphertextHash32: Uint8Array, // = blake2b(encrypted, 32) — caller precomputes
+	accountId: [string, number], // MARKETPLACE_ACCOUNT_ID
+	publicKey?: Uint8Array, // local-dev fallback
+	sign?: (msg: Uint8Array) => Uint8Array | Promise<Uint8Array>,
+): Promise<void> {
+	if (!isInHost()) {
+		if (!publicKey || !sign) throw new Error("publicKey and sign required outside Host");
+		return _rawSubmit(wsUrl, encrypted, publicKey, sign);
+	}
+
+	const statement: Statement = {
+		proof: undefined,
+		decryptionKey: ciphertextHash32,
+		expiry:
+			(BigInt(Math.floor(Date.now() / 1000) + 31_536_000) << 32n) |
+			BigInt(Date.now() % 0xffffffff),
+		channel: LISTINGS_CHANNEL,
+		topics: [GLOBAL_TOPIC],
+		data: encrypted,
+	};
+
+	const proof = await Promise.race([
+		getStore().createProof(accountId, statement),
+		new Promise<never>((_, r) =>
+			setTimeout(() => r(new Error("createProof timeout — Host unresponsive 10s")), 10_000),
+		),
+	]);
+
+	await getStore().submit({ ...statement, proof });
+}
+
+/**
+ * Subscribe to marketplace statements.
+ *
+ * - Inside Host: live subscription via SDK; `onUpdate` is called for each batch.
+ * - Outside Host (local dev): one-shot dump via raw RPC; `onUpdate` called once then no-op.
+ *
+ * Returns `{ unsubscribe }` for cleanup (e.g. React useEffect return).
+ */
+export function subscribeStatements(
+	wsUrl: string,
+	onUpdate: (cache: Map<string, Uint8Array>) => void,
+): { unsubscribe(): void } {
+	const cache = new Map<string, Uint8Array>();
+
+	if (!isInHost()) {
+		_rawFetch(wsUrl).then((stmts) => {
+			for (const s of stmts) {
+				if (s.data) cache.set(s.hash, s.data);
+			}
+			onUpdate(new Map(cache));
+		});
+		return { unsubscribe() {} };
+	}
+
+	const sub = getStore().subscribe([GLOBAL_TOPIC], (stmts: SignedStatement[]) => {
+		for (const s of stmts) {
+			if (!s.data) continue;
+			const hash = "0x" + _toHex(blake2b(s.data, undefined, 32));
+			cache.set(hash, s.data);
+		}
+		onUpdate(new Map(cache)); // new ref so React rerenders
+	});
+
+	return sub;
+}
+
+// ---------------------------------------------------------------------------
+// Back-compat shim for PoE / PalletPage (raw-RPC only, no SDK path)
+// ---------------------------------------------------------------------------
+
+/**
+ * @deprecated Use `submitStatement` instead. This shim keeps existing
+ * PoE/PalletPage callers compiling without modification.
+ */
+export async function submitToStatementStore(
+	wsUrl: string,
+	fileBytes: Uint8Array,
+	publicKey: Uint8Array,
+	sign: (message: Uint8Array) => Uint8Array | Promise<Uint8Array>,
+): Promise<void> {
+	return _rawSubmit(wsUrl, fileBytes, publicKey, sign);
 }
