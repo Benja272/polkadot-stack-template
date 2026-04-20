@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useChainStore } from "../store/chainStore";
 import { useConnection } from "../hooks/useConnection";
 import { getClient } from "../hooks/useChain";
@@ -8,6 +9,8 @@ import {
 	getNetworkPresetEndpoints,
 	type NetworkPreset,
 } from "../config/network";
+
+const isDev = import.meta.env.DEV || new URLSearchParams(window.location.search).has("dev");
 
 export default function HomePage() {
 	const { wsUrl, ethRpcUrl, setEthRpcUrl, connected, blockNumber, pallets } = useChainStore();
@@ -66,23 +69,40 @@ export default function HomePage() {
 			{/* Hero */}
 			<div className="space-y-3">
 				<h1 className="page-title">
-					Medical Data{" "}
+					Sell verified medical records.{" "}
 					<span className="bg-gradient-to-r from-polka-400 to-polka-600 bg-clip-text text-transparent">
-						Marketplace
+						Keep your identity private.
 					</span>
 				</h1>
 				<p className="text-text-secondary text-base leading-relaxed max-w-2xl">
-					A decentralized ZK marketplace for verified health data on Polkadot. Patients
-					sell attested records to researchers through atomic, privacy-preserving
-					exchanges — without revealing identity or raw records.
+					A decentralized marketplace where patients exchange attested health data for
+					payment, without revealing identity or raw records. Powered by zero-knowledge
+					proofs on Polkadot.
 				</p>
+				<div className="flex gap-3 pt-2">
+					<Link to="/researcher" className="btn-primary">
+						Browse listings
+					</Link>
+					<Link to="/patient" className="btn-secondary">
+						I have a record to sell
+					</Link>
+				</div>
 			</div>
 
 			{/* Marketplace cards */}
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 				<FeatureCard
+					title="Researcher"
+					description="Browse verified listings, place buy offers, and decrypt purchased clinical data."
+					link="/researcher"
+					accentColor="text-accent-green"
+					borderColor="hover:border-accent-green/20"
+					available={true}
+					unavailableReason=""
+				/>
+				<FeatureCard
 					title="Patient"
-					description="Upload attested health records, set disclosure rules, manage listings, track earnings."
+					description="Publish attested health records, set disclosure rules, manage listings, track earnings."
 					link="/patient"
 					accentColor="text-accent-blue"
 					borderColor="hover:border-accent-blue/20"
@@ -91,140 +111,138 @@ export default function HomePage() {
 				/>
 				<FeatureCard
 					title="Medic"
-					description="Sign patient records with your professional key. Construct Merkle trees and generate EdDSA signatures."
+					description="Sign patient records with your professional key so they can be sold on the marketplace."
 					link="/medic"
 					accentColor="text-accent-purple"
 					borderColor="hover:border-accent-purple/20"
 					available={true}
 					unavailableReason=""
 				/>
-				<FeatureCard
-					title="Researcher"
-					description="Browse verified listings, place buy orders, and decrypt purchased clinical data."
-					link="/researcher"
-					accentColor="text-accent-green"
-					borderColor="hover:border-accent-green/20"
-					available={true}
-					unavailableReason=""
-				/>
 			</div>
 
-			{/* Divider */}
-			<div className="flex items-center gap-4">
-				<div className="flex-1 h-px bg-white/[0.06]" />
-				<span className="text-xs text-text-muted uppercase tracking-wider">
-					Template Reference (PoE)
-				</span>
-				<div className="flex-1 h-px bg-white/[0.06]" />
-			</div>
-
-			{/* Connection card */}
-			<div className="card space-y-5">
-				<div className="flex flex-wrap gap-2">
-					<button onClick={() => applyPreset("local")} className="btn-secondary text-xs">
-						Use Local Dev
-					</button>
-					<button
-						onClick={() => applyPreset("testnet")}
-						className="btn-secondary text-xs"
-					>
-						Use Hub TestNet
-					</button>
-				</div>
-
-				<div>
-					<label className="label">Substrate WebSocket Endpoint</label>
-					<div className="flex gap-2">
-						<input
-							type="text"
-							value={urlInput}
-							onChange={(e) => setUrlInput(e.target.value)}
-							onKeyDown={(e) => e.key === "Enter" && handleConnect()}
-							placeholder={LOCAL_WS_URL}
-							className="input-field flex-1"
-						/>
-						<button
-							onClick={handleConnect}
-							disabled={connecting}
-							className="btn-primary"
-						>
-							{connecting ? "Connecting..." : "Connect"}
-						</button>
+			{isDev && (
+				<>
+					{/* Divider */}
+					<div className="flex items-center gap-4">
+						<div className="flex-1 h-px bg-white/[0.06]" />
+						<span className="text-xs text-text-muted uppercase tracking-wider">
+							Template Reference (PoE)
+						</span>
+						<div className="flex-1 h-px bg-white/[0.06]" />
 					</div>
-				</div>
 
-				<div>
-					<label className="label">Ethereum JSON-RPC Endpoint</label>
-					<input
-						type="text"
-						value={ethRpcInput}
-						onChange={(e) => {
-							setEthRpcInput(e.target.value);
-							setEthRpcUrl(e.target.value);
-						}}
-						placeholder={LOCAL_ETH_RPC_URL}
-						className="input-field w-full"
-					/>
-					<p className="text-xs text-text-muted mt-2">
-						Used by the EVM and PVM contract pages.
-					</p>
-				</div>
+					{/* Connection card */}
+					<div className="card space-y-5">
+						<div className="flex flex-wrap gap-2">
+							<button
+								onClick={() => applyPreset("local")}
+								className="btn-secondary text-xs"
+							>
+								Use Local Dev
+							</button>
+							<button
+								onClick={() => applyPreset("testnet")}
+								className="btn-secondary text-xs"
+							>
+								Use Hub TestNet
+							</button>
+						</div>
 
-				{/* Status grid */}
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<StatusItem label="Chain Status">
-						{error ? (
-							<span className="text-accent-red text-sm">{error}</span>
-						) : connected ? (
-							<span className="text-accent-green flex items-center gap-1.5">
-								<span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse-slow" />
-								Connected
-							</span>
-						) : connecting ? (
-							<span className="text-accent-yellow">Connecting...</span>
-						) : (
-							<span className="text-text-muted">Disconnected</span>
-						)}
-					</StatusItem>
-					<StatusItem label="Chain Name">
-						{chainName || <span className="text-text-muted">...</span>}
-					</StatusItem>
-					<StatusItem label="Latest Block">
-						<span className="font-mono">#{blockNumber}</span>
-					</StatusItem>
-				</div>
-			</div>
+						<div>
+							<label className="label">Substrate WebSocket Endpoint</label>
+							<div className="flex gap-2">
+								<input
+									type="text"
+									value={urlInput}
+									onChange={(e) => setUrlInput(e.target.value)}
+									onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+									placeholder={LOCAL_WS_URL}
+									className="input-field flex-1"
+								/>
+								<button
+									onClick={handleConnect}
+									disabled={connecting}
+									className="btn-primary"
+								>
+									{connecting ? "Connecting..." : "Connect"}
+								</button>
+							</div>
+						</div>
 
-			{/* Feature cards */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-				<FeatureCard
-					title="Pallet PoE"
-					description="Claim file hashes via the Substrate FRAME pallet using PAPI."
-					link="/pallet"
-					accentColor="text-accent-blue"
-					borderColor="hover:border-accent-blue/20"
-					available={pallets.templatePallet}
-					unavailableReason="TemplatePallet not found in connected runtime"
-				/>
-				<FeatureCard
-					title="EVM PoE (solc)"
-					description="Same proof of existence via Solidity compiled with solc, deployed to the EVM backend."
-					link="/evm"
-					accentColor="text-accent-purple"
-					borderColor="hover:border-accent-purple/20"
-					available={pallets.revive}
-					unavailableReason="pallet-revive not found in connected runtime"
-				/>
-				<FeatureCard
-					title="PVM PoE (resolc)"
-					description="Same Solidity contract compiled with resolc to PolkaVM bytecode, deployed via pallet-revive."
-					link="/pvm"
-					accentColor="text-accent-green"
-					borderColor="hover:border-accent-green/20"
-					available={pallets.revive}
-					unavailableReason="pallet-revive not found in connected runtime"
-				/>
-			</div>
+						<div>
+							<label className="label">Ethereum JSON-RPC Endpoint</label>
+							<input
+								type="text"
+								value={ethRpcInput}
+								onChange={(e) => {
+									setEthRpcInput(e.target.value);
+									setEthRpcUrl(e.target.value);
+								}}
+								placeholder={LOCAL_ETH_RPC_URL}
+								className="input-field w-full"
+							/>
+							<p className="text-xs text-text-muted mt-2">
+								Used by the EVM and PVM contract pages.
+							</p>
+						</div>
+
+						{/* Status grid */}
+						<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+							<StatusItem label="Chain Status">
+								{error ? (
+									<span className="text-accent-red text-sm">{error}</span>
+								) : connected ? (
+									<span className="text-accent-green flex items-center gap-1.5">
+										<span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse-slow" />
+										Connected
+									</span>
+								) : connecting ? (
+									<span className="text-accent-yellow">Connecting...</span>
+								) : (
+									<span className="text-text-muted">Disconnected</span>
+								)}
+							</StatusItem>
+							<StatusItem label="Chain Name">
+								{chainName || <span className="text-text-muted">...</span>}
+							</StatusItem>
+							<StatusItem label="Latest Block">
+								<span className="font-mono">#{blockNumber}</span>
+							</StatusItem>
+						</div>
+					</div>
+
+					{/* Feature cards */}
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+						<FeatureCard
+							title="Pallet PoE"
+							description="Claim file hashes via the Substrate FRAME pallet using PAPI."
+							link="/pallet"
+							accentColor="text-accent-blue"
+							borderColor="hover:border-accent-blue/20"
+							available={pallets.templatePallet}
+							unavailableReason="TemplatePallet not found in connected runtime"
+						/>
+						<FeatureCard
+							title="EVM PoE (solc)"
+							description="Same proof of existence via Solidity compiled with solc, deployed to the EVM backend."
+							link="/evm"
+							accentColor="text-accent-purple"
+							borderColor="hover:border-accent-purple/20"
+							available={pallets.revive}
+							unavailableReason="pallet-revive not found in connected runtime"
+						/>
+						<FeatureCard
+							title="PVM PoE (resolc)"
+							description="Same Solidity contract compiled with resolc to PolkaVM bytecode, deployed via pallet-revive."
+							link="/pvm"
+							accentColor="text-accent-green"
+							borderColor="hover:border-accent-green/20"
+							available={pallets.revive}
+							unavailableReason="pallet-revive not found in connected runtime"
+						/>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

@@ -58,3 +58,10 @@ export function getStoredWsUrl() {
 export function getStoredEthRpcUrl() {
 	return getStoredUrl("eth-rpc-url", "default-eth-rpc-url", getDefaultEthRpcUrl());
 }
+
+export function explorerTxUrl(txHash: string, ethRpcUrl: string): string | null {
+	if (!txHash) return null;
+	const url = ethRpcUrl.toLowerCase();
+	if (url.includes("localhost") || url.includes("127.0.0.1")) return null;
+	return `https://blockscout-asset-hub.parity-testnet.parity.io/tx/${txHash}`;
+}

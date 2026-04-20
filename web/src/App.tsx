@@ -34,18 +34,28 @@ export default function App() {
 		);
 	}, []);
 
+	const isDev = import.meta.env.DEV || new URLSearchParams(window.location.search).has("dev");
+
 	const navItems = [
 		{ path: "/", label: "Home", enabled: true },
-		// Marketplace
+		// Marketplace (required order)
+		{ path: "/researcher", label: "Researcher", enabled: true },
 		{ path: "/patient", label: "Patient", enabled: true },
 		{ path: "/medic", label: "Medic", enabled: true },
-		{ path: "/researcher", label: "Researcher", enabled: true },
-		// Template reference (PoE)
-		{ path: "/pallet", label: "Pallet PoE", enabled: pallets.templatePallet === true },
-		{ path: "/evm", label: "EVM PoE", enabled: pallets.revive === true },
-		{ path: "/pvm", label: "PVM PoE", enabled: pallets.revive === true },
-		{ path: "/statements", label: "Statements", enabled: true },
-		{ path: "/accounts", label: "Accounts", enabled: true },
+		// Template reference (PoE) — dev only
+		...(isDev
+			? [
+					{
+						path: "/pallet",
+						label: "Pallet PoE",
+						enabled: pallets.templatePallet === true,
+					},
+					{ path: "/evm", label: "EVM PoE", enabled: pallets.revive === true },
+					{ path: "/pvm", label: "PVM PoE", enabled: pallets.revive === true },
+					{ path: "/statements", label: "Statements", enabled: true },
+					{ path: "/accounts", label: "Accounts", enabled: true },
+				]
+			: []),
 	];
 
 	return (
