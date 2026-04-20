@@ -151,7 +151,12 @@ async function dispatchViaAsMulti(
 			call: innerCall.decodedCall,
 			max_weight: AS_MULTI_WEIGHT,
 		});
-		const first = await submitExtrinsic(firstTx, firstSigner.polkadotSigner);
+		// Immortal era: back-to-back signs from the same PAPI client otherwise risk
+		// Invalid{BadProof} when the cached best-block drifts between signs. See
+		// POLKADOT_INTEGRATION_GOTCHAS.md #12.
+		const first = await submitExtrinsic(firstTx, firstSigner.polkadotSigner, {
+			mortal: false,
+		});
 		timepoint = { height: first.blockNumber, index: first.blockIndex };
 		console.log(
 			`    first approval at block #${first.blockNumber} (tx index ${first.blockIndex})`,
@@ -168,7 +173,9 @@ async function dispatchViaAsMulti(
 		call: innerCall.decodedCall,
 		max_weight: AS_MULTI_WEIGHT,
 	});
-	const second = await submitExtrinsic(secondTx, secondSigner.polkadotSigner);
+	const second = await submitExtrinsic(secondTx, secondSigner.polkadotSigner, {
+		mortal: false,
+	});
 	console.log(`    final approval at block #${second.blockNumber} (tx ${second.txHash})`);
 }
 
