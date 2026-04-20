@@ -706,8 +706,16 @@ update_papi_descriptors() {
     papi_config="$(mktemp "$ROOT_DIR/web/papi.local.XXXXXX.json")"
     write_papi_config "$papi_config"
 
-    npm run update-types -- --config "$papi_config"
-    npm run codegen -- --config "$papi_config"
+    # papi update can emit an unhandled "Not connected" observable error during
+    # WebSocket teardown *after* successfully writing metadata. Downgrade
+    # unhandled rejections to warnings and don't let either step abort start-all
+    # — the committed descriptors remain a safe fallback if the update fails.
+    NODE_OPTIONS="--unhandled-rejections=warn" \
+        npm run update-types -- --config "$papi_config" \
+        || log_warn "papi update exited non-zero (metadata may still have been written)"
+    NODE_OPTIONS="--unhandled-rejections=warn" \
+        npm run codegen -- --config "$papi_config" \
+        || log_warn "papi codegen exited non-zero; using committed descriptors"
 
     rm -f "$papi_config"
 }

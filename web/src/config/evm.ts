@@ -44,6 +44,17 @@ export const proofOfExistenceAbi = [
 	},
 ] as const;
 
+// MedicAuthority contract ABI — view-only, registry of verified medics
+export const medicAuthorityAbi = [
+	{
+		inputs: [{ name: "", type: "address" }],
+		name: "isVerifiedMedic",
+		outputs: [{ name: "", type: "bool" }],
+		stateMutability: "view",
+		type: "function",
+	},
+] as const;
+
 // MedicalMarket contract ABI — Phase 5.2 (off-chain crypto, no on-chain proof)
 export const medicalMarketAbi = [
 	{

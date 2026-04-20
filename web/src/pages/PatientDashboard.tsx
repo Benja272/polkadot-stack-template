@@ -3,6 +3,7 @@ import { type Address, parseEther, formatEther, encodeFunctionData } from "viem"
 import { Binary, FixedSizeBinary, type TxBestBlocksState } from "polkadot-api";
 import { filter, firstValueFrom } from "rxjs";
 import { medicalMarketAbi, getPublicClient } from "../config/evm";
+import VerifiedBadge from "../components/VerifiedBadge";
 import { deployments } from "../config/deployments";
 import {
 	submitStatement,
@@ -648,6 +649,11 @@ export default function PatientDashboard() {
 												{bytesToHex(hexToBytes(commitHex)).slice(0, 18)}…
 												{commitHex.slice(-8)}
 											</p>
+											<div className="mt-1">
+												<VerifiedBadge
+													address={listing.patient as `0x${string}`}
+												/>
+											</div>
 										</div>
 										<span
 											className={`text-xs font-medium px-1.5 py-0.5 rounded whitespace-nowrap ${
