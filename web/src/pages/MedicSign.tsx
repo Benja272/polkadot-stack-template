@@ -4,6 +4,7 @@ import { poseidon2 } from "poseidon-lite";
 import { signMessage, derivePublicKey } from "@zk-kit/eddsa-poseidon";
 import { blake2b } from "blakejs";
 import { evmDevAccounts } from "../config/evm";
+import { devAccounts } from "../hooks/useAccount";
 import FileDropZone from "../components/FileDropZone";
 import VerifiedBadge from "../components/VerifiedBadge";
 
@@ -170,7 +171,14 @@ export default function MedicSign() {
 					<span className="text-text-muted text-xs font-mono">
 						{evmDevAccounts[selectedAccount].account.address}
 					</span>
-					<VerifiedBadge address={evmDevAccounts[selectedAccount].account.address} />
+					{/*
+					 * Badge uses devAccounts[i].evmAddress (keccak256(sr25519_publicKey)[-20:])
+					 * because that is the H160 pallet-revive sees as msg.sender when this
+					 * dev account signs a contract call via PAPI. The viem-derived address
+					 * in evmDevAccounts above is the EVM secp256k1 address and will never
+					 * match listing.patient or the MedicAuthority registry.
+					 */}
+					<VerifiedBadge address={devAccounts[selectedAccount].evmAddress} />
 				</div>
 			</div>
 
