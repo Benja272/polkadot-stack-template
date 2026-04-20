@@ -21,21 +21,33 @@ import { createClient, Binary, FixedSizeBinary } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
 import { getPolkadotSigner } from "polkadot-api/signer";
-import { cryptoWaitReady } from "@polkadot/util-crypto";
+import { cryptoWaitReady, blake2AsHex } from "@polkadot/util-crypto";
 import { u8aToHex } from "@polkadot/util";
 import { Keyring } from "@polkadot/keyring";
-import { keccak256, encodeFunctionData } from "viem";
+import { createPublicClient, http, keccak256, encodeFunctionData } from "viem";
 import { stack_template } from "@polkadot-api/descriptors";
 import { readDeployments } from "./_deployments";
 import { submitExtrinsic } from "./_papi";
 
 const WS_URL = process.env.SUBSTRATE_RPC_WS ?? "ws://127.0.0.1:9944";
+const ETH_RPC_URL = process.env.ETH_RPC_HTTP ?? "http://127.0.0.1:8545";
 const DEV_MNEMONIC = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
 const SS58_PREFIX = 42;
 const FUND_AMOUNT_PLANCK = 10_000_000_000_000n; // 10 UNIT
 const REVIVE_CALL_WEIGHT = { ref_time: 3_000_000_000n, proof_size: 1_048_576n };
 const MAX_STORAGE_DEPOSIT = 100_000_000_000_000n;
 const AS_MULTI_WEIGHT = { ref_time: 30_000_000_000n, proof_size: 2_000_000n };
+const INTER_TX_DELAY_MS = 2_000; // Breathe between back-to-back signAndSubmit calls
+
+const isVerifiedMedicAbi = [
+	{
+		type: "function",
+		name: "isVerifiedMedic",
+		inputs: [{ name: "", type: "address" }],
+		outputs: [{ name: "", type: "bool" }],
+		stateMutability: "view",
+	},
+] as const;
 
 const medicAuthorityAbi = [
 	{
@@ -64,28 +76,61 @@ function hexToBytes(hex: string): Uint8Array {
 	return out;
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function dispatchViaAsMulti(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	api: any,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	innerCall: any,
 	threshold: number,
+	multisigSs58: string,
 	sortedSignatories: string[],
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	firstSigner: { ss58: string; polkadotSigner: any },
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	secondSigner: { ss58: string; polkadotSigner: any },
 ) {
-	const firstOther = sortedSignatories.filter((s) => s !== firstSigner.ss58);
-	const firstTx = api.tx.Multisig.as_multi({
-		threshold,
-		other_signatories: firstOther,
-		maybe_timepoint: undefined,
-		call: innerCall.decodedCall,
-		max_weight: AS_MULTI_WEIGHT,
-	});
-	const first = await submitExtrinsic(firstTx, firstSigner.polkadotSigner);
-	const timepoint = { height: first.blockNumber, index: first.blockIndex };
+	// Compute call hash — used to look up any existing pending multisig entry so we can
+	// resume from the second-signer step instead of re-submitting the first approval
+	// (which would fail with Multisig.NoTimepoint on an already-underway operation).
+	const encoded = await innerCall.getEncodedData();
+	const callHashHex = blake2AsHex(encoded.asBytes(), 256);
+	const callHashBytes = FixedSizeBinary.fromHex(
+		callHashHex as `0x${string}`,
+	) as FixedSizeBinary<32>;
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let existing: any = undefined;
+	try {
+		existing = await api.query.Multisig.Multisigs.getValue(multisigSs58, callHashBytes);
+	} catch {
+		// Storage lookup failed — fall through to first-signer submission.
+	}
+
+	let timepoint: { height: number; index: number };
+	if (existing) {
+		console.log(
+			`    (resume) pending multisig entry found at timepoint ${JSON.stringify(existing.when)}; skipping first-signer submit`,
+		);
+		timepoint = existing.when as { height: number; index: number };
+	} else {
+		const firstOther = sortedSignatories.filter((s) => s !== firstSigner.ss58);
+		const firstTx = api.tx.Multisig.as_multi({
+			threshold,
+			other_signatories: firstOther,
+			maybe_timepoint: undefined,
+			call: innerCall.decodedCall,
+			max_weight: AS_MULTI_WEIGHT,
+		});
+		const first = await submitExtrinsic(firstTx, firstSigner.polkadotSigner);
+		timepoint = { height: first.blockNumber, index: first.blockIndex };
+		console.log(
+			`    first approval at block #${first.blockNumber} (tx index ${first.blockIndex})`,
+		);
+		// Give the chain time to finalize before the second signer picks up state.
+		await sleep(INTER_TX_DELAY_MS);
+	}
 
 	const secondOther = sortedSignatories.filter((s) => s !== secondSigner.ss58);
 	const secondTx = api.tx.Multisig.as_multi({
@@ -95,7 +140,8 @@ async function dispatchViaAsMulti(
 		call: innerCall.decodedCall,
 		max_weight: AS_MULTI_WEIGHT,
 	});
-	await submitExtrinsic(secondTx, secondSigner.polkadotSigner);
+	const second = await submitExtrinsic(secondTx, secondSigner.polkadotSigner);
+	console.log(`    final approval at block #${second.blockNumber} (tx ${second.txHash})`);
 }
 
 async function main() {
@@ -118,6 +164,25 @@ async function main() {
 	const aliceSigner = getPolkadotSigner(alice.publicKey, "Sr25519", (m) => alice.sign(m));
 	const bobSigner = getPolkadotSigner(bob.publicKey, "Sr25519", (m) => bob.sign(m));
 
+	const aliceH160 = keccakH160(alice.publicKey);
+
+	// Fast path: if Alice is already verified, nothing to do. Lets re-running the script
+	// against a fully-bootstrapped node return instantly instead of re-submitting asMulti
+	// calls that will hit NoTimepoint / stale-state errors.
+	const evmClient = createPublicClient({ transport: http(ETH_RPC_URL) });
+	const alreadyVerified = await evmClient
+		.readContract({
+			address: deployments.medicAuthority as `0x${string}`,
+			abi: isVerifiedMedicAbi,
+			functionName: "isVerifiedMedic",
+			args: [aliceH160],
+		})
+		.catch(() => false);
+	if (alreadyVerified) {
+		console.log(`Alice (${aliceH160}) is already a verified medic — nothing to bootstrap.`);
+		return;
+	}
+
 	const client = createClient(withPolkadotSdkCompat(getWsProvider(WS_URL)));
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const api: any = client.getTypedApi(stack_template);
@@ -127,8 +192,14 @@ async function main() {
 		dest: { type: "Id", value: multisigSs58 },
 		value: FUND_AMOUNT_PLANCK,
 	});
-	const fundResult = await submitExtrinsic(fundTx, aliceSigner);
-	console.log(`  [OK] Funded at block #${fundResult.blockNumber}`);
+	try {
+		const fundResult = await submitExtrinsic(fundTx, aliceSigner);
+		console.log(`  [OK] Funded at block #${fundResult.blockNumber}`);
+	} catch (e) {
+		console.log(
+			`  [WARN] transfer_keep_alive failed (multisig may already be funded): ${(e as Error).message}`,
+		);
+	}
 
 	console.log("[2/3] Mapping multisig in pallet-revive via asMulti...");
 	try {
@@ -136,16 +207,16 @@ async function main() {
 			api,
 			api.tx.Revive.map_account(),
 			threshold,
+			multisigSs58,
 			sortedSignatories,
 			{ ss58: alice.address, polkadotSigner: aliceSigner },
 			{ ss58: bob.address, polkadotSigner: bobSigner },
 		);
 		console.log("  [OK] map_account dispatched.");
 	} catch (e) {
-		console.log(`  [WARN] map_account failed (may already be mapped): ${(e as Error).message}`);
+		console.log(`  [WARN] map_account asMulti failed: ${(e as Error).message}`);
 	}
 
-	const aliceH160 = keccakH160(alice.publicKey);
 	console.log(`[3/3] Adding Alice (${aliceH160}) as verified medic via asMulti...`);
 	const calldata = encodeFunctionData({
 		abi: medicAuthorityAbi,
@@ -164,23 +235,41 @@ async function main() {
 			api,
 			addMedicCall,
 			threshold,
+			multisigSs58,
 			sortedSignatories,
-			{
-				ss58: alice.address,
-				polkadotSigner: aliceSigner,
-			},
-			{
-				ss58: bob.address,
-				polkadotSigner: bobSigner,
-			},
+			{ ss58: alice.address, polkadotSigner: aliceSigner },
+			{ ss58: bob.address, polkadotSigner: bobSigner },
 		);
 		console.log(`  [OK] addMedic(${aliceH160}) dispatched.`);
 	} catch (e) {
-		console.log(`  [WARN] addMedic failed (may already be verified): ${(e as Error).message}`);
+		console.log(`  [WARN] addMedic asMulti failed: ${(e as Error).message}`);
 	}
 
 	client.destroy();
-	console.log("\nDemo bootstrap complete. Alice will show ✓ Verified medic in the UI.");
+
+	// Final verification: read isVerifiedMedic and report truthfully.
+	const verifiedNow = await evmClient
+		.readContract({
+			address: deployments.medicAuthority as `0x${string}`,
+			abi: isVerifiedMedicAbi,
+			functionName: "isVerifiedMedic",
+			args: [aliceH160],
+		})
+		.catch(() => false);
+
+	if (verifiedNow) {
+		console.log(`\n[OK] Bootstrap complete — Alice (${aliceH160}) is verified on-chain.`);
+	} else {
+		console.log(`\n[WARN] Alice (${aliceH160}) is NOT verified on-chain after bootstrap.`);
+		console.log(
+			`       Inner Revive.call likely reverted silently — map_account may not have taken effect.`,
+		);
+		console.log(`       Re-run: 'cd contracts/pvm && npm run bootstrap-demo-medic:local'`);
+		console.log(
+			`       If it still fails after a fresh start-all, dig into POLKADOT_INTEGRATION_GOTCHAS.md #6.`,
+		);
+		// Don't abort start-all — vite is still worth starting even if the badge is off.
+	}
 }
 
 main().catch((err) => {
