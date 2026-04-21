@@ -56,6 +56,97 @@ no BBS+ pairing operations.
               (patient-maintained pin)
 ```
 
+> **The diagram above is the Phase 3+ target architecture** (Semaphore Group, ZK Verifier,
+> IPFS). See [Current State (Phase 5.2)](#current-state-phase-52) below for what is deployed today.
+
+---
+
+## Current State: Phase 5.2
+
+Phase 5.2 is the deployed runtime as of 2026-04. **No on-chain ZK proof, no Semaphore Group,
+no IPFS.** The contract is a pure escrow + signal layer; atomicity is relaxed (Phase 5.3 will
+add a reclaim window). The archived circuit + verifier live in `circuits/` and
+`contracts/pvm/contracts/Verifier.sol`; see `docs/product/ZKCP_DESIGN_OPTIONS.md` for the
+decision record.
+
+**Deployed** (addresses in `deployments.json`): `MedicalMarket.sol` Phase 5.2, `medicAuthority`,
+2-of-3 pallet-multisig (threshold=2, signatories: Bob, Charlie, Alice; `map_account` registered).
+
+### Phase 5.2 Structs and Events
+
+```solidity
+struct Listing {
+    uint256 recordCommit;  // HashChain32(plaintext[32]) — what the medic signed
+    uint256 medicPkX;      // medic's BabyJubJub pubkey (EdDSA-Poseidon)
+    uint256 medicPkY;
+    uint256 sigR8x;        // medic's EdDSA signature over recordCommit
+    uint256 sigR8y;
+    uint256 sigS;
+    string  title;
+    uint256 price;         // minimum in wei (native PAS)
+    address patient;
+    bool    active;
+}
+
+struct Order {
+    uint256 listingId;
+    address researcher;
+    uint256 amount;        // native PAS locked
+    bool    confirmed;
+    bool    cancelled;
+    uint256 pkBuyerX;      // researcher's BabyJubJub pubkey for ECDH
+    uint256 pkBuyerY;
+}
+
+struct Fulfillment {
+    uint256 ephPkX;         // patient's ephemeral BabyJubJub pubkey
+    uint256 ephPkY;
+    uint256 ciphertextHash; // Statement Store key = HashChain32(ciphertext[32])
+}
+```
+
+```solidity
+event ListingCreated(address indexed patient, uint256 indexed listingId,
+    uint256 recordCommit, uint256 medicPkX, uint256 medicPkY, string title, uint256 price);
+event OrderPlaced(uint256 indexed listingId, uint256 indexed orderId,
+    address indexed researcher, uint256 amount, uint256 pkBuyerX, uint256 pkBuyerY);
+event SaleFulfilled(uint256 indexed orderId, uint256 indexed listingId,
+    address patient, address researcher,
+    uint256 ephPkX, uint256 ephPkY, uint256 ciphertextHash);
+```
+
+### Phase 5.2 Contract Interface
+
+```solidity
+// Patient: publish listing. Medic sig stored on-chain; researcher can pre-verify before paying.
+createListing(
+    uint256 recordCommit,
+    uint256 medicPkX, uint256 medicPkY,
+    uint256 sigR8x,   uint256 sigR8y, uint256 sigS,
+    string calldata title,
+    uint256 price
+)
+
+// Researcher: lock native PAS + register BabyJubJub pubkey (must send ≥ listing.price).
+placeBuyOrder(uint256 listingId, uint256 pkBuyerX, uint256 pkBuyerY) payable
+
+// Patient: declare ephemeral key + ciphertext hash; releases listing.price to patient.
+// No on-chain proof. Buyer verifies (HashChain32 == recordCommit, EdDSA sig) off-chain.
+fulfill(uint256 orderId, uint256 ephPkX, uint256 ephPkY, uint256 ciphertextHash)
+
+cancelListing(uint256 listingId)   // only if no pending order
+cancelOrder(uint256 orderId)       // researcher refunded in full
+```
+
+### Phase 5.2 Off-Chain Verification (buyer)
+
+After fetching ciphertext from the Statement Store and decrypting via ECDH + Poseidon stream cipher:
+1. `HashChain32(plaintext) == listing.recordCommit` — proves the plaintext matches what was signed
+2. `EdDSA.verify(listing.medicPk, listing.sig, listing.recordCommit)` — proves a known medic signed it
+
+`HashChain32(x[32]) = poseidon2(poseidon16(x[0..16]), poseidon16(x[16..32]))` — see `web/src/utils/zk.ts`.
+Both checks render as ✓/✗ chips in `ResearcherBuy.tsx`.
+
 ---
 
 ## Layer 1: People Chain (Professional Credentialing)
@@ -100,24 +191,25 @@ Asset Hub contract state.
 
 ## Layer 3: Asset Hub (Execution and Settlement)
 
-### Data Anchoring
+### Data Anchoring (Phase 3+ Planned)
 
-When a record is listed, the patient stores two pieces of data in the marketplace contract:
+> **Phase 5.2 (current)**: Ciphertext is uploaded to the **Statement Store** (`pallet-statement`),
+> not IPFS. Only `ciphertextHash = HashChain32(ciphertext[32])` lands on-chain, in the
+> `Fulfillment` struct. The researcher fetches the ciphertext from the Statement Store after
+> observing `SaleFulfilled`. No `recordCommit` in the listing is a Merkle root — it is
+> `HashChain32(plaintext[32])`.
 
-1. **Hash**: Blake2b or Poseidon hash of the encrypted clinical blob.
-2. **IPFS CID**: Content identifier for the blob stored on IPFS.
+When a record is listed in the full ZK architecture (Phase 3+), the patient stores two pieces
+of data in the marketplace contract:
 
-The ZK proof binds the buyer's `PK_buyer` to the specific hash stored in the contract. The
-researcher is paying for the file whose hash is committed on-chain — not a different file.
+1. **Merkle root**: Poseidon Merkle root of the record's attribute tree.
+2. **Data hash**: Hash of the complete encrypted blob for integrity checking.
 
-**IPFS availability caveat**: Hash anchoring proves integrity but not availability. If the
-patient unpins the IPFS file, the buyer receives a dead CID after paying. Two options:
+The ZK proof binds the buyer's `PK_buyer` to the specific hash stored in the contract.
 
-- **Option A (recommended for MVP)**: Patient includes the encrypted blob in the `fulfill()`
-  calldata. The contract emits it as an event. No IPFS dependency at fulfillment time.
-  Downside: higher gas for large records.
-- **Option B (V2)**: Patient deposits a bond at listing time, slashed if file is unretrievable
-  within a challenge window.
+**Availability note**: Hash anchoring proves integrity but not availability. Phase 5.3 adds an
+escrow/acknowledge/reclaim window so a buyer who gets a bad ciphertext can recover payment.
+A bond-based IPFS availability mechanism is V2.
 
 ### Cryptographic Primitive Stack
 
@@ -139,7 +231,7 @@ circuit packages. Semaphore v4 is built on it. Use it directly rather than custo
 native Semaphore integration. However, it is explicitly experimental with no security audit.
 Consider for V2 if you want pre-built configurable circuits. Skip for MVP.
 
-### The ZK Circuit
+### The ZK Circuit (Phase 3+ Planned — not in current runtime)
 
 One Groth16 circuit (Circom) proves all of the following:
 
@@ -181,79 +273,93 @@ Patients are data owners, not just sellers. The system must make this real in th
 
 **What the patient always retains:**
 
-- Their private key (decrypts their own records at any time — selling does not transfer this key).
-- The original encrypted blob on IPFS (until they choose to unpin it).
+- The signed package JSON (stored in browser localStorage / Host KV as `signed-pkg:<hash>`),
+  which contains `plaintext[32]` — the patient can re-read their own record at any time.
 - The ability to read their own records in plaintext in the dashboard.
 
-**What the contract stores per listing (queryable by the patient):**
+Note: in Phase 5.2 there is no IPFS blob. The patient's own plaintext lives entirely in
+local browser storage. Selling creates a buyer-specific ciphertext; the patient's storage
+is not affected.
 
-```
+**What the contract stores per listing (Phase 5.2 — queryable by the patient):**
+
+```solidity
 struct Listing {
-    bytes32 merkleRoot;       // commitment to the record's attribute tree
-    bytes32 dataHash;         // hash of the encrypted blob
-    bytes32 ipfsCid;          // where to fetch the encrypted blob
-    bytes32[] disclosedFields; // which Merkle paths were committed
-    uint256 price;
+    uint256 recordCommit;  // HashChain32(plaintext[32]) — what the medic signed
+    uint256 medicPkX;      // medic's BabyJubJub pubkey (public)
+    uint256 medicPkY;
+    uint256 sigR8x;        // EdDSA signature over recordCommit (public)
+    uint256 sigR8y;
+    uint256 sigS;
+    string  title;
+    uint256 price;         // minimum in wei (native PAS)
     address patient;
-    ListingStatus status;     // Active | Fulfilled | Delisted
+    bool    active;
 }
 ```
 
-**What the contract emits on fulfillment (queryable as patient):**
+**What the contract emits on fulfillment (Phase 5.2):**
 
-```
-event RecordSold(
+```solidity
+event SaleFulfilled(
+    uint256 indexed orderId,
     uint256 indexed listingId,
-    bytes32 pkBuyer,          // buyer's BabyJubJub public key (pseudonymous)
-    uint256 amount,           // USDT/USDC received
-    uint256 timestamp
+    address patient,
+    address researcher,
+    uint256 ephPkX,
+    uint256 ephPkY,
+    uint256 ciphertextHash  // Statement Store key; researcher fetches ciphertext by this hash
 );
 ```
 
-**Patient dashboard reads:**
+**Patient dashboard reads (Phase 5.2):**
 
-1. All `Listing` structs where `listing.patient == msg.sender` → active listings.
-2. All `RecordSold` events for those listing IDs → purchase history, earnings.
-3. For each listing's `ipfsCid` → fetch encrypted blob → decrypt client-side → display plaintext.
+1. All `Listing` structs where `listing.patient == own address` → active / sold listings.
+2. `SaleFulfilled` events for those listing IDs → purchase history, earnings, buyer ephPk.
+3. Plaintext is in local storage (`signed-pkg:<recordCommit>`) — no network fetch needed.
 
-**Key ownership model**: Selling a record creates a ciphertext encrypted for `PK_buyer` using
-ECDH. The patient's own key is never transferred. The patient can decrypt their original blob
-at any time. The buyer can decrypt only the ciphertext produced for their `PK_buyer`.
-These are independent — one sale does not affect the patient's own access.
+**Key ownership model**: Selling a record creates a ciphertext encrypted for `pkBuyer` using
+ECDH + Poseidon stream cipher. The patient's signed package is never transferred. The buyer
+can decrypt only the ciphertext produced for their `pkBuyer`; these are independent.
 
 ---
 
-### Contract Interface
+### Contract Interface (Phase 5.2 — current)
 
 **Place buy order** (researcher):
 ```solidity
+// Lock native PAS; register BabyJubJub pubkey for ECDH. Must send ≥ listing.price.
 placeBuyOrder(
-    bytes32 criteria,     // what condition/attributes are required
-    uint256 price,        // USDT/USDC amount in escrow
-    bytes32 pkBuyer       // researcher's BabyJubJub public key
-)
+    uint256 listingId,    // which listing to buy
+    uint256 pkBuyerX,     // researcher's BabyJubJub public key X coordinate
+    uint256 pkBuyerY      // researcher's BabyJubJub public key Y coordinate
+) payable
 ```
-Researcher commits `PK_buyer` on-chain before the patient runs the circuit. The patient reads
-this value and uses it for the ECDH encryption step.
+Researcher commits `pkBuyer` on-chain. Patient reads it from the order to derive the ECDH
+shared secret and produce the buyer-specific ciphertext.
 
 **Fulfill order** (patient):
 ```solidity
+// Phase 5.2: no on-chain proof. Patient declares ephemeral key + ciphertext hash.
 fulfill(
-    bytes   proof,          // Groth16 proof
-    bytes32 nullifier,      // Semaphore nullifier (replay prevention)
-    bytes32[] ciphertext,   // Poseidon-encrypted disclosed fields
-    bytes32 ipfsCid         // (optional if using calldata approach)
+    uint256 orderId,
+    uint256 ephPkX,         // patient's ephemeral BabyJubJub pubkey X
+    uint256 ephPkY,         // patient's ephemeral BabyJubJub pubkey Y
+    uint256 ciphertextHash  // HashChain32(ciphertext[32]); Statement Store lookup key
 )
 ```
 Contract:
-1. Verifies the Groth16 proof against the on-chain verifier.
-2. Checks nullifier has not been used (replay prevention).
-3. Confirms Merkle root matches the on-chain listing commitment.
-4. Atomically releases USDT/USDC to patient; emits ciphertext to researcher.
+1. Verifies caller is `listing.patient`.
+2. Releases `listing.price` to patient; refunds excess to researcher.
+3. Emits `SaleFulfilled`. No proof verification — buyer verifies off-chain.
+
+> **Phase 3+ target**: `fulfill()` will also accept a Groth16 proof and Semaphore nullifier,
+> verify them against the on-chain verifier, and check the Merkle root matches the listing.
+> That makes the swap fully atomic (no off-chain trust required).
 
 ---
 
-## Two-Week Sprint Plan (42 hours)
+## Two-Week Sprint Plan (historical — completed 2026-04)
 
 ### Week 1: Identity and JSON-Merkle Logic
 

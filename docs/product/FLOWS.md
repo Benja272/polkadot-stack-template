@@ -3,9 +3,13 @@
 End-to-end technical flows for every process in the protocol.
 Each flow shows who does what, where it happens (on-chain / off-chain / client), and what data moves.
 
+> **Phase status**: Flows 2, 3, 4, 5 reflect **Phase 5.2 (current deployed state)** — no ZK
+> proof, no Semaphore, Statement Store instead of IPFS. Flows 1 and 6 describe the
+> **Phase 2/7 planned** Mixer Box + Semaphore architecture, not yet implemented.
+
 ---
 
-## Flow 1: Medic Onboarding
+## Flow 1: Medic Onboarding (Phase 2/7 — Planned, not yet implemented)
 
 **Actors**: Medic, Central Authority (Mixer Box backend), People Chain, Asset Hub
 
@@ -51,50 +55,51 @@ revocation. Never published.
 
 ---
 
-## Flow 2: Record Upload and Listing
+## Flow 2: Record Listing (Phase 5.2 — Current)
 
-**Actors**: Medic, Patient, IPFS, Asset Hub
+**Actors**: Medic, Patient, Asset Hub
 
 ```
-MEDIC (local tool)                          PATIENT (browser)          IPFS    ASSET HUB
-      |                                             |                    |           |
-      | 1. Construct Merkle tree                    |                    |           |
-      |   JSON fields → Poseidon leaves             |                    |           |
-      |   @zk-kit/lean-imt → Merkle root            |                    |           |
-      |                                             |                    |           |
-      | 2. Sign Merkle root                         |                    |           |
-      |   EdDSA(BabyJubJub private key, root)       |                    |           |
-      |   → signature (R, S)                        |                    |           |
-      |                                             |                    |           |
-      | 3. Deliver to patient                       |                    |           |
-      |---(JSON fields + Merkle tree + signature)-->|                    |           |
-      |                                             |                    |           |
-      |                        4. Encrypt full record                    |           |
-      |                           Encrypt(JSON, patient_private_key)     |           |
-      |                           → encrypted_blob                       |           |
-      |                                             |                    |           |
-      |                        5. Upload to IPFS    |                    |           |
-      |                                             |---upload blob----->|           |
-      |                                             |<------CID----------|           |
-      |                                             |                    |           |
-      |                        6. Compute hash      |                    |           |
-      |                           Poseidon(encrypted_blob) → dataHash   |           |
-      |                                             |                    |           |
-      |                        7. Create listing    |                    |           |
-      |                                             |--createListing(----+---------->|
-      |                                             |   merkleRoot,      |           |
-      |                                             |   dataHash,        |           |
-      |                                             |   ipfsCid,         |           |
-      |                                             |   price)           |           |
-      |                                             |                    |           |
-      |                        Listing is live. No ZK proof generated yet.          |
+MEDIC (browser)                          PATIENT (browser)              ASSET HUB
+      |                                        |                             |
+      | 1. Upload JSON record                  |                             |
+      |                                        |                             |
+      | 2. Encode to 32 field elements         |                             |
+      |    encodeRecordToFieldElements()        |                             |
+      |    → plaintext[32]                     |                             |
+      |                                        |                             |
+      | 3. Compute recordCommit                |                             |
+      |    HashChain32(plaintext[32])          |                             |
+      |    = poseidon2(poseidon16(first16),    |                             |
+      |                poseidon16(last16))     |                             |
+      |                                        |                             |
+      | 4. Sign recordCommit                   |                             |
+      |    EdDSA-Poseidon(medicSk,             |                             |
+      |      recordCommit) → { R8x, R8y, S }  |                             |
+      |    medicPk = derivePublicKey(medicSk)  |                             |
+      |                                        |                             |
+      | 5. Export signed package               |                             |
+      |----(plaintext[32], recordCommit, ----→ |                             |
+      |     medicPk, sig, title)               |                             |
+      |                                        |                             |
+      |             6. Import + save to localStorage / Host KV               |
+      |                (key: "signed-pkg:<recordCommit>")                    |
+      |                                        |                             |
+      |             7. createListing           |                             |
+      |                (recordCommit,          |                             |
+      |                 medicPkX, medicPkY,    |                             |
+      |                 sigR8x, sigR8y, sigS,  |                             |
+      |                 title, price) ---------+------------------------→   |
+      |                                        |                             |
+      |             Listing is live.           |                             |
 ```
 
-**What ends up on-chain**: `merkleRoot`, `dataHash`, `ipfsCid`, `price`, `patient address`,
-`status = Active`. No field values. No medic identity. No signature.
+**What ends up on-chain**: `recordCommit`, `medicPkX`, `medicPkY`, `sigR8x`, `sigR8y`, `sigS`,
+`title`, `price`, `patient`, `active=true`. The full medic signature is public — researchers
+can pre-verify "a known medic signed this" before placing a buy order.
 
-**What stays off-chain**: Plaintext JSON, Merkle tree structure, EdDSA signature.
-All needed later when the patient generates the sale proof.
+**What stays off-chain**: `plaintext[32]` — stored in the patient's browser (localStorage or
+Host KV). Required at fulfill time to encrypt the record for the buyer.
 
 ---
 
@@ -115,130 +120,135 @@ RESEARCHER (browser)                                              ASSET HUB
       | 3. Place buy order                                            |
       |-------------------placeBuyOrder(----------------------------->|
       |                       listingId,                              |
-      |                       pk_buyer,    ← committed on-chain      |
-      |                       USDT amount  ← locked in escrow        |
-      |                   )                                           |
+      |                       pkBuyerX, pkBuyerY, ← committed on-chain|
+      |                   ) payable  ← native PAS locked in contract  |
       |                                                               |
-      | Order is on-chain. Funds locked. pk_buyer is public.         |
+      | Order is on-chain. Funds locked. pkBuyer is public.          |
 ```
 
-**What ends up on-chain**: `listingId`, `pk_buyer`, `escrowed amount`, `status = Pending`.
+**What ends up on-chain**: `listingId`, `pkBuyerX`, `pkBuyerY`, `amount` (native PAS), `confirmed=false`.
 
-**Why `pk_buyer` must be on-chain before the patient acts**: The patient reads `pk_buyer`
-from the contract and uses it as a public input to the ZK circuit. The circuit encrypts
-the disclosed fields specifically for this key. The order cannot be fulfilled for a
-different buyer.
+**Why `pkBuyer` must be on-chain before the patient acts**: The patient reads `pkBuyer` from
+the order and uses it as the ECDH target for the Poseidon stream cipher encryption. The
+ciphertext is locked to this specific public key — only the holder of `skBuyer` can decrypt.
 
 ---
 
-## Flow 4: Record Sale (Proof Generation + Atomic Swap)
+## Flow 4: Record Sale (Phase 5.2 — Off-chain Verification)
+
+**Actors**: Patient, Researcher, Statement Store, Asset Hub
+
+> Phase 5.2 relaxes atomicity: no Groth16 proof is generated or verified on-chain. Payment
+> releases when the patient calls `fulfill()`; the buyer verifies correctness off-chain after
+> decrypting. Phase 5.3 will add a reclaim window for buyers who detect a bad ciphertext.
+> The full ZKCP (atomic proof + designated-encryption) is Phase 5+ — see `ARCHITECTURE.md`.
+
+**PATIENT — encrypt and fulfill:**
+```
+PATIENT (browser)                              STATEMENT STORE    ASSET HUB
+      |                                               |                 |
+      | 1. Read buy order                             |                 |
+      |---getOrder(orderId) / getPendingOrderId()-----+--------------→ |
+      |←-(listingId, pkBuyerX, pkBuyerY, amount)------+----------------|
+      |                                               |                 |
+      | 2. Load signed package from local storage     |                 |
+      |    plaintext[32], recordCommit, medicPk, sig  |                 |
+      |    (stored as "signed-pkg:<recordCommit>")    |                 |
+      |                                               |                 |
+      | 3. ECDH + Poseidon stream cipher (off-chain)  |                 |
+      |    ephSk       ← random BabyJubJub scalar     |                 |
+      |    ephPk       ← mulPointEscalar(Base8, ephSk)|                 |
+      |    sharedPt    ← mulPointEscalar(pkBuyer, ephSk)               |
+      |    ct[i]       ← (pt[i] + poseidon4([shX, shY, nonce, i]))     |
+      |                    % BN254_R                  |                 |
+      |    ctHash      ← HashChain32(ct[32])          |                 |
+      |                                               |                 |
+      | 4. Upload ciphertext to Statement Store       |                 |
+      |---(ct[32] as 32×32 bytes) ----------------->  |                 |
+      |                                               |                 |
+      | 5. fulfill(orderId, ephPkX, ephPkY, ctHash)---+--------------→ |
+      |    Contract: releases listing.price to patient|                 |
+      |             refunds excess to researcher      |                 |
+      |             emits SaleFulfilled(orderId,      |                 |
+      |               listingId, patient, researcher, |                 |
+      |               ephPkX, ephPkY, ctHash)         |                 |
+```
+
+**RESEARCHER — fetch, decrypt, verify:**
+```
+RESEARCHER (browser)                           STATEMENT STORE    ASSET HUB
+      |                                               |                 |
+      | 1. Observe SaleFulfilled or poll              |                 |
+      |    getFulfillment(orderId) -------------------+--------------→ |
+      |←-(ephPkX, ephPkY, ciphertextHash) ------------+----------------|
+      |                                               |                 |
+      | 2. Fetch ciphertext from Statement Store      |                 |
+      |---(ciphertextHash as lookup key) ----------→  |                 |
+      |←-(ciphertext bytes 32×32) ------------------- |                 |
+      |                                               |                 |
+      | 3. Decrypt                                    |                 |
+      |    sharedPt  ← mulPointEscalar(ephPk, skBuyer)|                 |
+      |    pt[i]     ← (ct[i] - poseidon4([shX, shY, nonce, i])        |
+      |                  + BN254_R) % BN254_R         |                 |
+      |    record    ← decodeRecordFromFieldElements(pt)                |
+      |                                               |                 |
+      | 4. Off-chain verification                     |                 |
+      |    ✓ HashChain32(pt) == listing.recordCommit ?|                 |
+      |    ✓ EdDSA.verify(medicPk, sig, recordCommit)?|                 |
+      |    (shown as ✓/✗ chips in ResearcherBuy.tsx)  |                 |
+```
+
+**What the researcher receives**: Decrypted `plaintext[32]`, decoded to a JSON record via
+`decodeRecordFromFieldElements()` in `web/src/utils/zk.ts`. Plus two off-chain verification
+results (commitment match + medic signature).
+
+**What no one else can read**: The ciphertext requires `skBuyer` for ECDH decryption. Only
+the holder of `skBuyer` can reconstruct the shared point and peel off the Poseidon pad.
+
+---
+
+## Flow 5: Patient Accesses Their Own Data (Phase 5.2 — Current)
 
 **Actors**: Patient, Asset Hub
-
-This is the heaviest step. The patient generates a Groth16 proof entirely in the browser
-using snarkjs, then submits it to the contract.
 
 ```
 PATIENT (browser)                                                 ASSET HUB
       |                                                               |
-      | 1. Read buy order from contract                               |
-      |-------------------getBuyOrder(orderId)----------------------->|
-      |<---(listingId, pk_buyer, price)-------------------------------|
+      | 1. Load own listings                                          |
+      |---getListingCount() + getListing(i) for each i -----------→  |
+      |←-[Listing{recordCommit, medicPk, sig, title, price, active}]--|
+      |   (filter: listing.patient == own address)                    |
       |                                                               |
-      | 2. Decrypt own record from IPFS                               |
-      |   fetch(ipfsCid) → encrypted_blob                             |
-      |   Decrypt(encrypted_blob, patient_private_key) → JSON fields  |
+      | 2. Read own plaintext                                         |
+      |   Load signed package from localStorage / Host KV            |
+      |   (key: "signed-pkg:<recordCommit>")                         |
+      |   → plaintext[32] + fieldsPreview already in the package     |
+      |   No on-chain or network fetch needed                         |
       |                                                               |
-      | 3. Select fields to disclose                                  |
-      |   (matches what was committed in merkleRoot)                  |
+      | 3. Load sale history                                          |
+      |---getOrderCount() + getOrder(i) + getFulfillment(i) ------→  |
+      |←-[Order + Fulfillment structs for fulfilled listings] --------|
       |                                                               |
-      | 4. Generate ZK proof (client-side, snarkjs)                   |
-      |                                                               |
-      |   Private inputs:                                             |
-      |     - disclosed field values (Merkle leaves)                  |
-      |     - Merkle inclusion paths for those fields                 |
-      |     - EdDSA signature (R, S) from medic                       |
-      |     - Semaphore identity (trapdoor, nullifier)                |
-      |     - patient ephemeral BabyJubJub private key                |
-      |                                                               |
-      |   Public inputs:                                              |
-      |     - merkleRoot (from on-chain listing)                      |
-      |     - Semaphore group root (from on-chain Semaphore contract)  |
-      |     - nullifierHash (replay prevention)                       |
-      |     - pk_buyer (from on-chain buy order)                      |
-      |     - ciphertext (output: ECDH-encrypted disclosed fields)    |
-      |     - externalNullifier (ties proof to this order)            |
-      |                                                               |
-      |   Circuit proves:                                             |
-      |     ✓ EdDSA signature is valid over merkleRoot                |
-      |     ✓ Disclosed fields are leaves of merkleRoot               |
-      |     ✓ Signer is a member of Verified Medics Semaphore group   |
-      |     ✓ ciphertext = PoseidonEncrypt(fields, ECDH(eph, pk_buyer)|
-      |                                                               |
-      | 5. Submit to contract                                         |
-      |-------------------fulfill(---------------------------------->  |
-      |                       proof,                                  |
-      |                       nullifierHash,                          |
-      |                       ciphertext,                             |
-      |                       orderId                                 |
-      |                   )                                           |
-      |                                                               |
-      |   Contract:                                                   |
-      |     ✓ Verifies Groth16 proof (on PVM verifier contract)       |
-      |     ✓ Checks nullifier not reused                             |
-      |     ✓ Confirms merkleRoot matches listing                     |
-      |     → Releases USDT/USDC to patient                          |
-      |     → Emits ciphertext (indexed by pk_buyer)                  |
-      |                                                               |
-      | Atomic: payment and ciphertext in the same transaction.       |
+      | Dashboard shows:                                              |
+      |   - Active listings (title, price, recordCommit)             |
+      |   - Fulfilled sales: researcher ephPk + ciphertextHash       |
+      |   - Patient can re-read own plaintext from local storage      |
+      |   - Total earnings from fulfilled orders                      |
 ```
 
-**What the researcher receives**: The ciphertext emitted by the contract, decryptable only
-with `sk_buyer`. They decrypt off-chain: `PoseidonDecrypt(ciphertext, ECDH(sk_buyer, eph_pub))`.
+**Key property**: The patient's signed package is never transferred or consumed by a sale.
+Selling creates a buyer-specific ciphertext; the patient's local storage is unaffected.
+The patient can always re-read their own records as long as the signed package file is in
+their browser storage.
 
-**What no one else can read**: The ciphertext is locked to `pk_buyer`. Even the patient who
-generated it cannot decrypt it (they don't have `sk_buyer`).
+**Cross-device note**: The signed package lives in browser-local storage. If the patient
+moves to a new device, they must re-import the signed package JSON. Phase 6 follow-up
+(see `IMPLEMENTATION_PLAN.md`) discusses routing key storage through the Polkadot Host KV
+API to survive IPFS CID redeploys on the same device.
 
 ---
 
-## Flow 5: Patient Accesses Their Own Data
-
-**Actors**: Patient, IPFS, Asset Hub
-
-```
-PATIENT (browser)                                    IPFS        ASSET HUB
-      |                                               |               |
-      | 1. Load own listings                          |               |
-      |------getListings(patient = msg.sender)------->|               |
-      |                     (not IPFS, this is contract read) ------->|
-      |<-----[Listing[], each with ipfsCid, status, price]-----------|
-      |                                               |               |
-      | 2. For each listing — fetch + decrypt         |               |
-      |------fetch(ipfsCid)-------------------------->|               |
-      |<-----encrypted_blob---------------------------|               |
-      |   Decrypt(encrypted_blob, patient_private_key)                |
-      |   → plaintext JSON fields                     |               |
-      |   (patient's own key, always available)       |               |
-      |                                               |               |
-      | 3. Load purchase history                      |               |
-      |------getEvents(RecordSold, listingIds)------->|               |
-      |                                        ---------------------->|
-      |<----[{ listingId, pk_buyer, amount, timestamp }]-------------|
-      |                                               |               |
-      | Dashboard shows:                              |               |
-      |   - All records (plaintext, decrypted)        |               |
-      |   - Active / fulfilled / delisted listings    |               |
-      |   - Per-sale: buyer pk_buyer, amount, date    |               |
-      |   - Total earnings                            |               |
-```
-
-**Key property**: The patient's decryption key is independent of the sale ciphertext.
-Selling does not transfer or exhaust the patient's key. They can decrypt their IPFS blob
-at any time, forever (as long as they have the key and the blob is available).
-
----
-
-## Flow 6: Medic Revocation
+## Flow 6: Medic Revocation (Phase 2/7 — Planned, not yet implemented)
 
 **Actors**: Central Authority, People Chain, Mixer Box, Asset Hub
 
@@ -276,14 +286,27 @@ Mixer Box should support emergency revocation (fast path, no timelock).
 
 ## Summary: What Lives Where
 
+### Phase 5.2 (current)
+
+| Data | Location | Who can read it |
+|---|---|---|
+| `recordCommit` (Poseidon hash of plaintext[32]) | Asset Hub — Listing struct (public) | Anyone |
+| `medicPkX/Y` + EdDSA signature | Asset Hub — Listing struct (public) | Anyone — researcher pre-verifies before paying |
+| `pkBuyerX/Y` | Asset Hub — Order struct (public) | Anyone — pseudonymous |
+| `ephPk` + `ciphertextHash` | Asset Hub — Fulfillment struct (public) | Anyone — ciphertext still needs `skBuyer` to decrypt |
+| Ciphertext bytes | Statement Store (off-chain) | Anyone who knows the hash — but encrypted |
+| Plaintext record | Patient's browser (localStorage / Host KV) | Patient only |
+| Buyer private key `skBuyer` | Researcher's browser | Researcher only |
+| Sale history | Asset Hub events (`SaleFulfilled`) | Anyone — buyer/patient addresses visible |
+
+### Phase 3+ (planned — adds ZK, Semaphore, IPFS)
+
 | Data | Location | Who can read it |
 |---|---|---|
 | Medic real identity | People Chain (public) | Anyone |
 | Semaphore commitment | Asset Hub contract (public) | Anyone — but not linkable to medic |
 | `{address → commitment}` map | Mixer Box (private) | Authority only |
 | Encrypted record blob | IPFS | Anyone with CID — but encrypted |
-| Plaintext record | Off-chain (patient device) | Patient only (has decryption key) |
 | Merkle root | Asset Hub contract (public) | Anyone — reveals nothing about field values |
 | EdDSA signature | Off-chain (patient device) | Patient only — private input to circuit |
 | Ciphertext (post-sale) | Asset Hub event log (public) | Buyer only (has `sk_buyer`) |
-| Purchase history | Asset Hub event log (public) | Anyone — buyer is pseudonymous (`pk_buyer`) |
