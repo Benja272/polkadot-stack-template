@@ -6,6 +6,10 @@ export const LOCAL_ETH_RPC_URL = import.meta.env.VITE_LOCAL_ETH_RPC_URL || "http
 export const TESTNET_WS_URL = "wss://asset-hub-paseo.dotters.network";
 export const TESTNET_ETH_RPC_URL = "https://services.polkadothub-rpc.com/testnet";
 
+// Statement Store lives on People chain, not Asset Hub.
+// Paseo People chain is the only public Paseo endpoint with statement_submit enabled.
+export const STATEMENT_STORE_TESTNET_WS_URL = "wss://paseo-people-next-rpc.polkadot.io";
+
 export type NetworkPreset = "local" | "testnet";
 
 function isLocalHost() {

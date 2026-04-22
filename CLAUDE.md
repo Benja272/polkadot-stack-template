@@ -69,7 +69,11 @@ Full product design documentation is in `docs/product/`.
   `@zk-kit/baby-jubjub`, and `@zk-kit/eddsa-poseidon`.
 - **Statement Store**: ephemeral signed storage for the encrypted ciphertext (~32 × 32 bytes).
   Lookup key is the Poseidon hash of the ciphertext (`ciphertextHash` in the on-chain
-  Fulfillment).
+  Fulfillment). **Important**: on Paseo testnet the Statement Store lives on the **People
+  chain** (`wss://paseo-people-next-rpc.polkadot.io`), NOT Asset Hub. Asset Hub has no
+  `statement_submit` RPC. On local dev the same node serves both chains so the Asset Hub URL
+  is reused. The resolver in `web/src/hooks/useStatementStore.ts` (`resolveStatementStoreUrl`)
+  handles this automatically — callers always pass the Asset Hub wsUrl.
 - **Phase 5.1 ZK stack (archived, not in runtime)**: `circuits/medical_disclosure.circom` and
   `contracts/pvm/contracts/Verifier.sol` remain in the repo as a working Option-1 ZKCP
   reference. Dropped from runtime because the on-chain BN254 pairing verification on PVM

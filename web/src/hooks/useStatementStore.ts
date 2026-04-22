@@ -5,6 +5,7 @@ import {
 } from "@novasamatech/product-sdk";
 import { Bytes, compact, u8 } from "@polkadot-api/substrate-bindings";
 import { blake2b } from "blakejs";
+import { STATEMENT_STORE_TESTNET_WS_URL } from "@/config/network";
 
 // ---------------------------------------------------------------------------
 // SDK constants
@@ -127,12 +128,23 @@ function wsToHttp(wsUrl: string): string {
 	return wsUrl.replace(/^ws(s?):\/\//, "http$1://");
 }
 
+/**
+ * Map an Asset Hub wsUrl to the correct Statement Store endpoint.
+ * On local dev the same node serves both; on Paseo the Statement Store
+ * runs on People chain, not Asset Hub.
+ */
+function resolveStatementStoreUrl(wsUrl: string): string {
+	const isLocal =
+		wsUrl.includes("localhost") || wsUrl.includes("127.0.0.1") || wsUrl.includes("192.168.");
+	return isLocal ? wsUrl : STATEMENT_STORE_TESTNET_WS_URL;
+}
+
 // ---------------------------------------------------------------------------
 // Private raw-RPC implementations (local-dev fallback)
 // ---------------------------------------------------------------------------
 
 async function _rawCheckRpc(wsUrl: string): Promise<boolean> {
-	const httpUrl = wsToHttp(wsUrl);
+	const httpUrl = wsToHttp(resolveStatementStoreUrl(wsUrl));
 	try {
 		const response = await fetch(httpUrl, {
 			method: "POST",
@@ -168,7 +180,7 @@ async function _rawSubmit(
 		);
 	}
 
-	const httpUrl = wsToHttp(wsUrl);
+	const httpUrl = wsToHttp(resolveStatementStoreUrl(wsUrl));
 	const response = await fetch(httpUrl, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -304,7 +316,7 @@ function decodeStatement(encoded: Uint8Array): Omit<DecodedStatement, "hash"> {
 }
 
 async function _rawFetch(wsUrl: string): Promise<DecodedStatement[]> {
-	const httpUrl = wsToHttp(wsUrl);
+	const httpUrl = wsToHttp(resolveStatementStoreUrl(wsUrl));
 	const response = await fetch(httpUrl, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
