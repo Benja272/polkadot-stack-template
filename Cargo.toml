@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
 	"blockchain/runtime",
-	"blockchain/pallets/template",
 	"cli",
 ]
 
@@ -14,12 +13,8 @@ repository = "https://github.com/parity-Asia/polkadot-stack-template.git"
 edition = "2021"
 
 [workspace.dependencies]
-# Local crates
-pallet-template = { path = "./blockchain/pallets/template", default-features = false }
-
 # Common dependencies
 codec = { version = "3.7.4", default-features = false, package = "parity-scale-codec" }
-docify = { version = "0.2.9" }
 hex-literal = { version = "0.4.1", default-features = false }
 log = { version = "0.4.22", default-features = false }
 scale-info = { version = "2.11.6", default-features = false }
@@ -31,14 +26,6 @@ smallvec = { version = "1.13.1", default-features = false }
 polkadot-sdk = { version = "2512.3.3", default-features = false }
 cumulus-pallet-parachain-system = { version = "0.25.0", default-features = false }
 substrate-wasm-builder = { version = "31.1.0" }
-
-# FRAME (experimental umbrella crate - used by pallets)
-frame = { version = "0.14.0", default-features = false, package = "polkadot-sdk-frame" }
-
-# Used by pallet dev-deps
-sp-core = { version = "39.0.0" }
-sp-io = { version = "44.0.0", default-features = false }
-sp-statement-store = { version = "24.0.0" }
 
 # CLI dependencies
 subxt = { version = "0.38" }

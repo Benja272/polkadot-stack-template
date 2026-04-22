@@ -10710,16 +10710,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-template"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "polkadot-sdk-frame",
- "scale-info",
- "sp-io",
-]
-
-[[package]]
 name = "pallet-timestamp"
 version = "44.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18125,7 +18115,6 @@ dependencies = [
  "cumulus-pallet-parachain-system",
  "hex-literal",
  "log",
- "pallet-template",
  "parity-scale-codec",
  "polkadot-sdk 2512.3.3",
  "scale-info",

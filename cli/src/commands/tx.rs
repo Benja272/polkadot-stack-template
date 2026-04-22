@@ -10,7 +10,6 @@ alloy::sol! {
 	event OrderPlaced(uint256 indexed listingId, uint256 indexed orderId, address indexed researcher, uint256 amount);
 	event SaleFulfilled(uint256 indexed orderId, uint256 indexed listingId, address patient, address researcher, bytes32 decryptionKey);
 	event ListingCancelled(uint256 indexed listingId, address indexed patient);
-	event ProofSubmitted(address indexed owner, bytes32 indexed hash);
 }
 
 #[derive(Subcommand)]
@@ -64,12 +63,6 @@ fn decode_log(topics: &[FixedBytes<32>], data: &Bytes) -> Option<String> {
 		return Some(format!(
 			"MedicalMarket.ListingCancelled\n    listingId: {}\n    patient:   {}",
 			e.listingId, e.patient,
-		));
-	}
-	if let Ok(e) = ProofSubmitted::decode_raw_log(topics, data) {
-		return Some(format!(
-			"ProofOfExistence.ProofSubmitted\n    owner: {}\n    hash:  {:#x}",
-			e.owner, e.hash,
 		));
 	}
 	None

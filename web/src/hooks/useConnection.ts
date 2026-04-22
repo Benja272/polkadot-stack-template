@@ -30,7 +30,7 @@ export function useConnection() {
 			setWsUrl(url);
 			setConnected(false);
 			setBlockNumber(0);
-			setPallets({ templatePallet: null, revive: null });
+			setPallets({ revive: null });
 
 			disconnectClient();
 
@@ -49,14 +49,7 @@ export function useConnection() {
 				setConnected(true);
 
 				const api = client.getTypedApi(descriptor);
-				const detected = { templatePallet: false, revive: false };
-
-				try {
-					await api.query.TemplatePallet.Claims.getEntries();
-					detected.templatePallet = true;
-				} catch {
-					detected.templatePallet = false;
-				}
+				const detected = { revive: false };
 
 				try {
 					await api.constants.Revive.DepositPerByte();
@@ -72,7 +65,7 @@ export function useConnection() {
 				if (connectId !== id) return { ok: false, chain: null };
 				setConnected(false);
 				setBlockNumber(0);
-				setPallets({ templatePallet: false, revive: false });
+				setPallets({ revive: false });
 				throw e;
 			}
 		},

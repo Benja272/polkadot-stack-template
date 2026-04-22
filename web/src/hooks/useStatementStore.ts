@@ -429,20 +429,3 @@ export function subscribeStatements(
 
 	return sub;
 }
-
-// ---------------------------------------------------------------------------
-// Back-compat shim for PoE / PalletPage (raw-RPC only, no SDK path)
-// ---------------------------------------------------------------------------
-
-/**
- * @deprecated Use `submitStatement` instead. This shim keeps existing
- * PoE/PalletPage callers compiling without modification.
- */
-export async function submitToStatementStore(
-	wsUrl: string,
-	fileBytes: Uint8Array,
-	publicKey: Uint8Array,
-	sign: (message: Uint8Array) => Uint8Array | Promise<Uint8Array>,
-): Promise<void> {
-	return _rawSubmit(wsUrl, fileBytes, publicKey, sign);
-}

@@ -30,8 +30,6 @@ export default function App() {
 		);
 	}, []);
 
-	const isDev = import.meta.env.DEV || new URLSearchParams(window.location.search).has("dev");
-
 	const navItems = [
 		{ path: "/", label: "Home", enabled: true },
 		{ path: "/researcher", label: "Researcher", enabled: true },
@@ -40,7 +38,7 @@ export default function App() {
 		{ path: "/share", label: "Share", enabled: true },
 		{ path: "/inbox", label: "Inbox", enabled: true },
 		{ path: "/governance", label: "Governance", enabled: true },
-		...(isDev ? [{ path: "/accounts", label: "Accounts", enabled: true }] : []),
+		{ path: "/accounts", label: "Accounts", enabled: true },
 	];
 
 	return (

@@ -302,11 +302,6 @@ impl pallet_statement::Config for Runtime {
 	type MaxAllowedBytes = MaxAllowedBytes;
 }
 
-/// Configure the template proof-of-existence pallet.
-impl pallet_template::Config for Runtime {
-	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
-}
-
 // ── pallet-revive (EVM + PVM smart contracts) ──────────────────────────
 
 parameter_types! {

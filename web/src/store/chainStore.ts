@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { getStoredEthRpcUrl, getStoredWsUrl } from "../config/network";
 
 export interface PalletAvailability {
-	templatePallet: boolean | null; // null = not checked yet
 	revive: boolean | null;
 }
 
@@ -30,7 +29,7 @@ export const useChainStore = create<ChainState>((set) => ({
 	blockNumber: 0,
 	selectedAccount: 0,
 	txStatus: null,
-	pallets: { templatePallet: null, revive: null },
+	pallets: { revive: null },
 	setWsUrl: (wsUrl) => {
 		localStorage.setItem("ws-url", wsUrl);
 		set({ wsUrl });
