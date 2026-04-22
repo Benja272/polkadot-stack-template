@@ -205,7 +205,15 @@ export default function AccountsPage() {
 	// every 500ms until something is found (no upper limit).
 	const scanWallets = useCallback(() => {
 		try {
-			const wallets = getInjectedExtensions().filter((name) => name !== SpektrExtensionName);
+			// getInjectedExtensions reads globalThis.injectedWeb3, which SES/LavaMoat
+			// (MetaMask lockdown) can freeze before the extension injects. Fall back to
+			// window.injectedWeb3 directly, which extensions always write to.
+			let wallets = getInjectedExtensions();
+			if (wallets.length === 0) {
+				const w = (window as unknown as Record<string, unknown>).injectedWeb3;
+				if (w && typeof w === "object") wallets = Object.keys(w);
+			}
+			wallets = wallets.filter((name) => name !== SpektrExtensionName);
 			setAvailableWallets(wallets);
 			return wallets.length > 0;
 		} catch {
