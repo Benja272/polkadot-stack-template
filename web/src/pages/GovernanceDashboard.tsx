@@ -83,8 +83,10 @@ export default function GovernanceDashboard() {
 	const ms = deployments.multisig;
 	const authorityAddr = deployments.medicAuthority as `0x${string}` | null;
 
-	// Accounts
+	// All wallet accounts
 	const [accounts, setAccounts] = useState<AppAccount[]>(devAccounts);
+	// Signatories = wallet accounts whose SS58 is in ms.signatories (for propose/approve dropdowns)
+	const signatoryAccounts = accounts.filter((a) => ms?.signatories.includes(a.address));
 	const [proposerIdx, setProposerIdx] = useState(0);
 	const [approverIdx, setApproverIdx] = useState(1);
 
@@ -240,7 +242,7 @@ export default function GovernanceDashboard() {
 		if (!/^0x[0-9a-fA-F]{40}$/.test(target))
 			return setTxStatus("Error: target must be a valid H160 address (0x…)");
 
-		const proposer = accounts[proposerIdx];
+		const proposer = (signatoryAccounts.length > 0 ? signatoryAccounts : accounts)[proposerIdx];
 		if (!proposer) return setTxStatus("Error: no account selected");
 
 		setLoading(true);
@@ -344,7 +346,7 @@ export default function GovernanceDashboard() {
 			return setTxStatus("Error: enter a valid target H160 address");
 		entry = { ...entry, hint };
 
-		const approver = accounts[approverIdx];
+		const approver = (signatoryAccounts.length > 0 ? signatoryAccounts : accounts)[approverIdx];
 		if (!approver) return setTxStatus("Error: no approver selected");
 
 		setLoading(true);
@@ -438,7 +440,10 @@ export default function GovernanceDashboard() {
 				<p className="text-text-secondary text-sm mt-1">
 					Manage medic authority via the {ms?.threshold ?? 2}-of-
 					{ms?.signatories.length ?? 3} multisig (
-					{accounts.map((a) => a.name).join(" · ")})
+					{(signatoryAccounts.length > 0 ? signatoryAccounts : accounts)
+						.map((a) => a.name)
+						.join(" · ")}
+					)
 				</p>
 			</div>
 
@@ -574,11 +579,13 @@ export default function GovernanceDashboard() {
 							value={proposerIdx}
 							onChange={(e) => setProposerIdx(Number(e.target.value))}
 						>
-							{accounts.map((acc, i) => (
-								<option key={acc.address} value={i}>
-									{acc.name} ({acc.evmAddress.slice(0, 8)}…)
-								</option>
-							))}
+							{(signatoryAccounts.length > 0 ? signatoryAccounts : accounts).map(
+								(acc, i) => (
+									<option key={acc.address} value={i}>
+										{acc.name} ({acc.evmAddress.slice(0, 8)}…)
+									</option>
+								),
+							)}
 						</select>
 					</div>
 
@@ -643,11 +650,13 @@ export default function GovernanceDashboard() {
 						value={approverIdx}
 						onChange={(e) => setApproverIdx(Number(e.target.value))}
 					>
-						{accounts.map((acc, i) => (
-							<option key={acc.address} value={i}>
-								{acc.name} ({acc.evmAddress.slice(0, 8)}…)
-							</option>
-						))}
+						{(signatoryAccounts.length > 0 ? signatoryAccounts : accounts).map(
+							(acc, i) => (
+								<option key={acc.address} value={i}>
+									{acc.name} ({acc.evmAddress.slice(0, 8)}…)
+								</option>
+							),
+						)}
 					</select>
 				</div>
 
