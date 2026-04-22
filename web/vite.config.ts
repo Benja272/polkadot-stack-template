@@ -41,6 +41,6 @@ export default defineConfig({
 	optimizeDeps: {
 		// verifiablejs uses static WASM imports — exclude from pre-bundling
 		// so vite-plugin-wasm can handle it correctly at build time.
-		exclude: ["verifiablejs", "snarkjs"],
+		exclude: ["verifiablejs"],
 	},
 });

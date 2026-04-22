@@ -43,7 +43,6 @@ echo "[2/9] Generating chain spec..."
 generate_chain_spec
 
 echo "[3/9] Compiling contracts..."
-cd "$ROOT_DIR/contracts/evm" && npm install --silent && npx hardhat compile
 cd "$ROOT_DIR/contracts/pvm" && npm install --silent && npx hardhat compile
 cd "$ROOT_DIR"
 
@@ -57,28 +56,12 @@ echo "[5/9] Starting eth-rpc adapter..."
 start_eth_rpc_background
 wait_for_eth_rpc
 
-echo "[6/9] Deploying contracts..."
-echo "  Deploying ProofOfExistence via EVM (solc)..."
-cd "$ROOT_DIR/contracts/evm"
-npm run deploy:local
-
-echo "  Deploying ProofOfExistence via PVM (resolc)..."
+echo "[6/9] Deploying contracts to local chain..."
+log_info "  set-deployments: derive multisig, deploy MedicalMarket, deploy MedicAuthority (owner=multisig H160)."
 cd "$ROOT_DIR/contracts/pvm"
-npm run deploy:local
+npm run set-deployments -- --local
 
-echo "  Deploying MedicalMarket via PVM (resolc)..."
-cd "$ROOT_DIR/contracts/pvm"
-npm run deploy-market:local
-
-echo "[7/9] Deploying MedicAuthority governance registry..."
-echo "  Computing deterministic multisig AccountId + H160 from council wallet env vars..."
-cd "$ROOT_DIR/contracts/pvm"
-npm run set-deployments
-
-echo "  Deploying MedicAuthority with multisig H160 as sole initial authority..."
-npm run deploy-medic-authority:local
-
-echo "  Bootstrapping demo: fund multisig, map in pallet-revive, add Alice as medic..."
+echo "[7/9] Bootstrapping demo medic (fund multisig, map in pallet-revive, add Alice as verified medic)..."
 npm run bootstrap-demo-medic:local
 
 cd "$ROOT_DIR"
@@ -111,7 +94,7 @@ log_info "Ethereum RPC:  $ETH_RPC_HTTP"
 log_info "Frontend:      $FRONTEND_URL"
 log_info "Zombienet dir: $ZOMBIE_DIR"
 echo ""
-log_info "Included examples: PoE pallet, EVM contract, PVM contract, Statement Store, Bulletin upload"
+log_info "Included: MedicalMarket + MedicAuthority (PVM), multisig governance, Statement Store, Bulletin upload"
 log_info "MedicAuthority registry is live with Alice pre-registered as a verified medic."
 log_info "To add more medics after startup:"
 log_info "  cd contracts/pvm"

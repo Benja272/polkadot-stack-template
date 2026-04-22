@@ -19,12 +19,32 @@ pub fn parse_h256(hex_str: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> 
 	}
 	Ok(bytes)
 }
+use alloy::signers::local::PrivateKeySigner;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp_core::Pair;
 use sp_statement_store::Statement;
 use std::fs;
 use subxt::{OnlineClient, PolkadotConfig};
 use subxt_signer::sr25519::{dev, Keypair};
+
+// Well-known Substrate dev account private keys (Ethereum-format).
+// These are PUBLIC test keys from the standard dev mnemonics — NEVER use for real funds.
+const ALICE_KEY: &str = "0x5fb92d6e98884f76de468fa3f6278f8807c48bebc13595d45af5bdc4da702133";
+const BOB_KEY: &str = "0x8075991ce870b93a8870eca0c0f91913d12f47948ca0fd25b49c6fa7cdbeee8b";
+const CHARLIE_KEY: &str = "0x0b6e18cafb6ed99687ec547bd28139cafbd3a4f28014f8640076aba0082bf262";
+
+/// Resolve an Ethereum-format signer: dev name (alice|bob|charlie) or 0x-prefixed private key.
+pub fn resolve_signer(name: &str) -> Result<PrivateKeySigner, Box<dyn std::error::Error>> {
+	let lowered = name.to_lowercase();
+	let key = match lowered.as_str() {
+		"alice" => ALICE_KEY,
+		"bob" => BOB_KEY,
+		"charlie" => CHARLIE_KEY,
+		hex if hex.starts_with("0x") => hex,
+		_ => return Err(format!("Unknown signer: {name}. Use alice, bob, or charlie.").into()),
+	};
+	Ok(key.parse()?)
+}
 
 type Blake2b256 = Blake2b<U32>;
 type HashResult = Result<(String, Option<Vec<u8>>), Box<dyn std::error::Error>>;

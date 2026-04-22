@@ -1,4 +1,4 @@
-use crate::commands::contract::resolve_signer;
+use crate::commands::resolve_signer;
 use alloy::{
 	primitives::{
 		utils::{format_ether, parse_ether},
