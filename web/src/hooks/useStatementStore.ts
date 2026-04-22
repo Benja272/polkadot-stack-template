@@ -3,6 +3,9 @@ import {
 	type Statement,
 	type SignedStatement,
 } from "@novasamatech/product-sdk";
+import { createLazyClient } from "@novasamatech/statement-store";
+import { createStatementSdk } from "@novasamatech/sdk-statement";
+import { getWsProvider } from "polkadot-api/ws-provider/web";
 import { Bytes, compact, u8 } from "@polkadot-api/substrate-bindings";
 import { blake2b } from "blakejs";
 import { STATEMENT_STORE_TESTNET_WS_URL } from "@/config/network";
@@ -42,21 +45,6 @@ const MAX_STATEMENT_STORE_ENCODED_SIZE = 1024 * 1024 - 1;
 const FIELD_TAG_AUTH = 0;
 const FIELD_TAG_PLAIN_DATA = 8;
 const PROOF_VARIANT_SR25519 = 0;
-
-// Field discriminants from sp_statement_store::Field (stable2512-3)
-const FIELD_AUTHENTICITY_PROOF = 0;
-const FIELD_DECRYPTION_KEY = 1;
-const FIELD_PRIORITY = 2;
-const FIELD_CHANNEL = 3;
-const FIELD_TOPIC1 = 4;
-const FIELD_TOPIC2 = 5;
-const FIELD_TOPIC3 = 6;
-const FIELD_TOPIC4 = 7;
-const FIELD_DATA = 8;
-
-// Proof variants
-const PROOF_SR25519 = 0;
-const PROOF_ED25519 = 1;
 
 const encodeVecU8 = Bytes.enc();
 
@@ -158,9 +146,46 @@ async function _rawCheckRpc(wsUrl: string): Promise<boolean> {
 		});
 		const result = await response.json();
 		const methods: string[] = result?.result?.methods ?? [];
-		return methods.includes("statement_submit") && methods.includes("statement_dump");
+		// People chain exposes statement_submit + subscribeStatement but NOT statement_dump.
+		// Checking only submit is sufficient — dump is not needed for our write path.
+		return methods.includes("statement_submit");
 	} catch {
 		return false;
+	}
+}
+
+/**
+ * Fetch all statements from the node using statement_subscribeStatement.
+ * Works on People chain (no statement_dump needed) and on local nodes.
+ * The node sends existing statements in batches, resolving when remaining === 0.
+ */
+async function _sdkFetch(wsUrl: string): Promise<DecodedStatement[]> {
+	const storeUrl = resolveStatementStoreUrl(wsUrl);
+	// WsJsonRpcProvider extends JsonRpcProvider structurally; cast resolves cross-package type mismatch.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const provider = getWsProvider(storeUrl) as any;
+	const client = createLazyClient(provider);
+	const sdk = createStatementSdk(client.getRequestFn(), client.getSubscribeFn());
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const stmts = await (sdk.getStatements as (f: string) => Promise<any[]>)("any");
+		return stmts
+			.filter((s) => s.data instanceof Uint8Array && s.data.length > 0)
+			.map((s) => {
+				const data = s.data as Uint8Array;
+				const hash = "0x" + bytesToHex(blake2b(data, undefined, 32));
+				return {
+					hash,
+					signer: null,
+					proofType: null,
+					dataLength: data.length,
+					data,
+					topics: [],
+					priority: null,
+				} satisfies DecodedStatement;
+			});
+	} finally {
+		client.disconnect();
 	}
 }
 
@@ -208,141 +233,6 @@ export interface DecodedStatement {
 	data: Uint8Array | null;
 	topics: string[];
 	priority: number | null;
-}
-
-function hexToBytes(hex: string): Uint8Array {
-	const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-	const bytes = new Uint8Array(clean.length / 2);
-	for (let i = 0; i < bytes.length; i++) {
-		bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
-	}
-	return bytes;
-}
-
-function readCompact(bytes: Uint8Array, offset: number): { value: number; bytesRead: number } {
-	const first = bytes[offset];
-	const mode = first & 0b11;
-	if (mode === 0) return { value: first >> 2, bytesRead: 1 };
-	if (mode === 1) {
-		const value = ((bytes[offset + 1] << 8) | first) >> 2;
-		return { value, bytesRead: 2 };
-	}
-	if (mode === 2) {
-		const value =
-			((bytes[offset + 3] << 24) |
-				(bytes[offset + 2] << 16) |
-				(bytes[offset + 1] << 8) |
-				first) >>>
-			2;
-		return { value, bytesRead: 4 };
-	}
-	// Big-integer mode (mode === 3) — not expected for field counts
-	throw new Error("Compact big-integer mode not supported");
-}
-
-function readVecU8(bytes: Uint8Array, offset: number): { data: Uint8Array; bytesRead: number } {
-	const { value: len, bytesRead: prefixLen } = readCompact(bytes, offset);
-	const data = bytes.slice(offset + prefixLen, offset + prefixLen + len);
-	return { data, bytesRead: prefixLen + len };
-}
-
-function readU32LE(bytes: Uint8Array, offset: number): number {
-	return (
-		bytes[offset] |
-		(bytes[offset + 1] << 8) |
-		(bytes[offset + 2] << 16) |
-		((bytes[offset + 3] << 24) >>> 0)
-	);
-}
-
-function decodeStatement(encoded: Uint8Array): Omit<DecodedStatement, "hash"> {
-	let offset = 0;
-	const { value: numFields, bytesRead } = readCompact(encoded, offset);
-	offset += bytesRead;
-
-	let signer: string | null = null;
-	let proofType: string | null = null;
-	let data: Uint8Array | null = null;
-	let dataLength = 0;
-	const topics: string[] = [];
-	let priority: number | null = null;
-
-	for (let i = 0; i < numFields; i++) {
-		const tag = encoded[offset];
-		offset += 1;
-
-		if (tag === FIELD_AUTHENTICITY_PROOF) {
-			const variant = encoded[offset];
-			offset += 1;
-			if (variant === PROOF_SR25519) {
-				proofType = "Sr25519";
-				offset += 64; // signature
-				signer = "0x" + bytesToHex(encoded.slice(offset, offset + 32));
-				offset += 32;
-			} else if (variant === PROOF_ED25519) {
-				proofType = "Ed25519";
-				offset += 64; // signature
-				signer = "0x" + bytesToHex(encoded.slice(offset, offset + 32));
-				offset += 32;
-			} else {
-				proofType = variant === 2 ? "Secp256k1Ecdsa" : "OnChain";
-				break; // can't safely skip variable-length proof variants
-			}
-		} else if (tag === FIELD_DECRYPTION_KEY || tag === FIELD_CHANNEL) {
-			// Both are fixed [u8; 32]
-			offset += 32;
-		} else if (tag === FIELD_PRIORITY) {
-			priority = readU32LE(encoded, offset);
-			offset += 4;
-		} else if (
-			tag === FIELD_TOPIC1 ||
-			tag === FIELD_TOPIC2 ||
-			tag === FIELD_TOPIC3 ||
-			tag === FIELD_TOPIC4
-		) {
-			topics.push("0x" + bytesToHex(encoded.slice(offset, offset + 32)));
-			offset += 32;
-		} else if (tag === FIELD_DATA) {
-			const result = readVecU8(encoded, offset);
-			data = result.data;
-			dataLength = result.data.length;
-			offset += result.bytesRead;
-		} else {
-			break; // unknown field
-		}
-	}
-
-	return { signer, proofType, data, dataLength, topics, priority };
-}
-
-async function _rawFetch(wsUrl: string): Promise<DecodedStatement[]> {
-	const httpUrl = wsToHttp(resolveStatementStoreUrl(wsUrl));
-	const response = await fetch(httpUrl, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			jsonrpc: "2.0",
-			id: 1,
-			method: "statement_dump",
-			params: [],
-		}),
-	});
-
-	const result = await response.json();
-	if (result.error) {
-		throw new Error(result.error.message);
-	}
-
-	const encoded: string[] = result.result ?? [];
-	return encoded.map((hex) => {
-		const bytes = hexToBytes(hex);
-		const decoded = decodeStatement(bytes);
-		// Hash the raw data payload — matches PatientDashboard.computeBlake2bHex(fileBytes)
-		// which is what gets stored on-chain as the listing's statementHash.
-		const hashSource = decoded.data ?? bytes;
-		const hash = "0x" + bytesToHex(blake2b(hashSource, undefined, 32));
-		return { hash, ...decoded };
-	});
 }
 
 // ---------------------------------------------------------------------------
@@ -408,14 +298,14 @@ export async function submitStatement(
 
 /**
  * One-shot fetch of a single statement by its blake2b-32 hash hex.
- * Used as a cache-miss fallback in the decrypt flow so a stale mount-time
- * cache doesn't block decryption after a recent fulfill.
+ * Uses the SDK subscription path (statement_subscribeStatement) which works
+ * on both local nodes and People chain (no statement_dump needed).
  */
 export async function fetchStatementByHash(
 	wsUrl: string,
 	hashHex: string,
 ): Promise<Uint8Array | null> {
-	const stmts = await _rawFetch(wsUrl);
+	const stmts = await _sdkFetch(wsUrl);
 	return stmts.find((s) => s.hash === hashHex)?.data ?? null;
 }
 
@@ -434,7 +324,7 @@ export function subscribeStatements(
 	const cache = new Map<string, Uint8Array>();
 
 	if (!isInHost()) {
-		_rawFetch(wsUrl).then((stmts) => {
+		_sdkFetch(wsUrl).then((stmts) => {
 			for (const s of stmts) {
 				if (s.data) cache.set(s.hash, s.data);
 			}
