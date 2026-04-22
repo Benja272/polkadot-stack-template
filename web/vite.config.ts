@@ -6,6 +6,9 @@ import path from "path";
 export default defineConfig({
 	base: "./",
 	plugins: [react(), wasm()],
+	server: {
+		allowedHosts: "all",
+	},
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

@@ -14,6 +14,10 @@ contract MedicAuthority {
 	event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 	event MedicAdded(address indexed medic, address indexed by);
 	event MedicRemoved(address indexed medic, address indexed by);
+	/// @notice Emitted by the proposer so approvers can read the intended action
+	///         without any off-chain coordination. callHash links this to the
+	///         on-chain MultisigInfo entry. No auth — anyone can call this.
+	event ProposalHinted(bytes32 indexed callHash, string action, address target);
 
 	constructor(address initialOwner) {
 		require(initialOwner != address(0), "zero address not allowed");

@@ -48,14 +48,18 @@ function loadHints(): Record<string, PendingHint> {
 
 function saveHint(callHash: string, hint: PendingHint) {
 	const hints = loadHints();
-	hints[callHash] = hint;
+	hints[callHash.toLowerCase()] = hint;
 	localStorage.setItem(HINTS_KEY, JSON.stringify(hints));
 }
 
 function removeHint(callHash: string) {
 	const hints = loadHints();
-	delete hints[callHash];
+	delete hints[callHash.toLowerCase()];
 	localStorage.setItem(HINTS_KEY, JSON.stringify(hints));
+}
+
+function lookupHint(hints: Record<string, PendingHint>, callHash: string): PendingHint | undefined {
+	return hints[callHash.toLowerCase()];
 }
 
 function shortHash(h: string) {
@@ -93,9 +97,24 @@ export default function GovernanceDashboard() {
 	// Pending on-chain entries
 	const [pendingEntries, setPendingEntries] = useState<PendingEntry[]>([]);
 
-	// Manual hint override for entries missing localStorage data
-	const [overrideAction, setOverrideAction] = useState<AuthorityMethod>("addMedic");
-	const [overrideTarget, setOverrideTarget] = useState("");
+	// Per-entry override state for entries without a localStorage hint
+	const [overrides, setOverrides] = useState<
+		Record<`0x${string}`, { action: AuthorityMethod; target: string; hashOk: null | boolean }>
+	>({});
+
+	const getOverride = (callHash: `0x${string}`) =>
+		overrides[callHash] ?? { action: "addMedic" as AuthorityMethod, target: "", hashOk: null };
+
+	function setOverrideField(callHash: `0x${string}`, field: "action" | "target", value: string) {
+		setOverrides((prev) => ({
+			...prev,
+			[callHash]: {
+				...(prev[callHash] ?? { action: "addMedic", target: "" }),
+				[field]: value,
+				hashOk: null,
+			},
+		}));
+	}
 
 	// Medic lookup
 	const [lookupAddr, setLookupAddr] = useState("");
@@ -114,7 +133,7 @@ export default function GovernanceDashboard() {
 	const readStatuses = useCallback(async () => {
 		if (!authorityAddr) return;
 		const client = getPublicClient(ethRpcUrl);
-		const addrs = devAccounts.map((a) => a.evmAddress);
+		const addrs = accounts.map((a) => a.evmAddress);
 
 		const [owner, medics] = await Promise.all([
 			client
@@ -146,7 +165,7 @@ export default function GovernanceDashboard() {
 		});
 		setContractOwner(owner);
 		setMedicStatuses(medicMap);
-	}, [ethRpcUrl, authorityAddr]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [ethRpcUrl, authorityAddr, accounts]);
 
 	const readPending = useCallback(async () => {
 		if (!ms) return;
@@ -156,7 +175,7 @@ export default function GovernanceDashboard() {
 			const api = client.getTypedApi(descriptor);
 			const entries = await listPending(api, ms.ss58);
 			const hints = loadHints();
-			setPendingEntries(entries.map((e) => ({ ...e, hint: hints[e.callHash] })));
+			setPendingEntries(entries.map((e) => ({ ...e, hint: lookupHint(hints, e.callHash) })));
 		} catch (err) {
 			console.error("[readPending]", err);
 		}
@@ -168,6 +187,8 @@ export default function GovernanceDashboard() {
 
 	useEffect(() => {
 		readPending();
+		const interval = setInterval(readPending, 6000);
+		return () => clearInterval(interval);
 	}, [readPending]);
 
 	async function handlePropose() {
@@ -202,6 +223,7 @@ export default function GovernanceDashboard() {
 			setTxStatus(
 				`Proposal submitted. CallHash: ${shortHash(callHash)}  (tx: ${result.txHash.slice(0, 14)}…)`,
 			);
+			await new Promise((r) => setTimeout(r, 3000));
 			await readPending();
 			await readStatuses();
 		} catch (e) {
@@ -211,13 +233,54 @@ export default function GovernanceDashboard() {
 		}
 	}
 
+	async function verifyOverrideHash(
+		callHash: `0x${string}`,
+		action: AuthorityMethod,
+		target: string,
+	) {
+		if (!authorityAddr || !/^0x[0-9a-fA-F]{40}$/.test(target.trim())) {
+			setOverrides((prev) => ({
+				...prev,
+				[callHash]: { ...getOverride(callHash), hashOk: null },
+			}));
+			return;
+		}
+		try {
+			const client = getClient(wsUrl);
+			const descriptor = await getStackTemplateDescriptor();
+			const api = client.getTypedApi(descriptor);
+			const calldata = encodeAuthorityCall(action, target.trim() as `0x${string}`);
+			const innerCall = buildReviveInnerTx(api, authorityAddr, calldata);
+			const computed = await computeCallHash(innerCall);
+			const ok = computed.toLowerCase() === callHash.toLowerCase();
+			setOverrides((prev) => ({ ...prev, [callHash]: { action, target, hashOk: ok } }));
+			if (ok) {
+				saveHint(callHash, {
+					action,
+					target: target.trim() as `0x${string}`,
+					proposedAt: Date.now(),
+				});
+				await readPending();
+			}
+		} catch {
+			setOverrides((prev) => ({
+				...prev,
+				[callHash]: { ...getOverride(callHash), hashOk: false },
+			}));
+		}
+	}
+
 	async function handleApprove(entry: PendingEntry) {
 		if (!ms || !authorityAddr) return setTxStatus("Error: contracts not deployed");
-		const hint = entry.hint ?? {
-			action: overrideAction,
-			target: overrideTarget.trim() as `0x${string}`,
-			proposedAt: 0,
-		};
+		let hint = entry.hint;
+		if (!hint) {
+			const ov = getOverride(entry.callHash);
+			if (ov.hashOk !== true)
+				return setTxStatus(
+					"Error: verify the action + target first — hash must match before approving",
+				);
+			hint = { action: ov.action, target: ov.target.trim() as `0x${string}`, proposedAt: 0 };
+		}
 		if (!hint.target || !/^0x[0-9a-fA-F]{40}$/.test(hint.target))
 			return setTxStatus("Error: enter a valid target H160 address");
 		entry = { ...entry, hint };
@@ -259,6 +322,7 @@ export default function GovernanceDashboard() {
 			setTxStatus(
 				`Executed! ${actionLabel(hint.action)} for ${hint.target.slice(0, 10)}…  (tx: ${result.txHash.slice(0, 14)}…)`,
 			);
+			await new Promise((r) => setTimeout(r, 3000));
 			await readPending();
 			await readStatuses();
 		} catch (e) {
@@ -294,7 +358,7 @@ export default function GovernanceDashboard() {
 
 	// Map sr25519-derived H160 addresses to account names
 	const devAddrNames: Record<string, string> = {};
-	devAccounts.forEach((a) => {
+	accounts.forEach((a) => {
 		devAddrNames[a.evmAddress.toLowerCase()] = a.name;
 	});
 
@@ -313,7 +377,9 @@ export default function GovernanceDashboard() {
 			<div>
 				<h1 className="text-2xl font-bold text-text-primary font-display">Governance</h1>
 				<p className="text-text-secondary text-sm mt-1">
-					Manage medic authority via the 2-of-3 multisig (Alice · Bob · Charlie)
+					Manage medic authority via the {ms?.threshold ?? 2}-of-
+					{ms?.signatories.length ?? 3} multisig (
+					{accounts.map((a) => a.name).join(" · ")})
 				</p>
 			</div>
 
@@ -406,7 +472,7 @@ export default function GovernanceDashboard() {
 								</td>
 							</tr>
 						)}
-						{devAccounts.map((a) => {
+						{accounts.map((a) => {
 							const addr = a.evmAddress;
 							return (
 								<tr key={addr} className="border-t border-white/[0.04]">
@@ -485,7 +551,7 @@ export default function GovernanceDashboard() {
 					</div>
 					{/* Quick-pick buttons */}
 					<div className="flex gap-2 flex-wrap">
-						{devAccounts.map((a) => (
+						{accounts.map((a) => (
 							<button
 								key={a.name}
 								className="btn-secondary text-xs px-2 py-0.5"
@@ -557,8 +623,8 @@ export default function GovernanceDashboard() {
 												)}
 											</p>
 										) : (
-											<p className="text-text-secondary text-sm italic">
-												Unknown action — fill in below
+											<p className="text-accent-yellow text-sm font-medium">
+												Proposal details unknown
 											</p>
 										)}
 										<p className="text-text-tertiary text-xs font-mono">
@@ -572,45 +638,115 @@ export default function GovernanceDashboard() {
 									<button
 										className="btn-primary text-xs px-3 py-1.5 shrink-0"
 										onClick={() => handleApprove(entry)}
-										disabled={loading}
+										disabled={
+											loading ||
+											(!entry.hint &&
+												getOverride(entry.callHash).hashOk !== true)
+										}
+										title={
+											!entry.hint &&
+											getOverride(entry.callHash).hashOk !== true
+												? "Verify hash first"
+												: undefined
+										}
 									>
 										Approve & Execute
 									</button>
 								</div>
-								{!entry.hint && (
-									<div className="pt-1 flex flex-wrap gap-2 items-end">
-										<select
-											className="input-field text-xs py-1 px-2"
-											value={overrideAction}
-											onChange={(e) =>
-												setOverrideAction(e.target.value as AuthorityMethod)
-											}
-										>
-											<option value="addMedic">Add Medic</option>
-											<option value="removeMedic">Remove Medic</option>
-											<option value="transferOwnership">
-												Transfer Ownership
-											</option>
-										</select>
-										<input
-											className="input-field text-xs py-1 px-2 flex-1 min-w-[160px] font-mono"
-											placeholder="0x… target H160"
-											value={overrideTarget}
-											onChange={(e) => setOverrideTarget(e.target.value)}
-										/>
-										<div className="flex gap-1">
-											{devAccounts.map((a, i) => (
-												<button
-													key={a.evmAddress}
-													className="btn-outline text-xs px-2 py-1"
-													onClick={() => setOverrideTarget(a.evmAddress)}
-												>
-													{["Alice", "Bob", "Charlie"][i]}
-												</button>
-											))}
-										</div>
-									</div>
-								)}
+								{!entry.hint &&
+									(() => {
+										const ov = getOverride(entry.callHash);
+										return (
+											<div className="pt-1 space-y-2">
+												<p className="text-text-tertiary text-xs">
+													Enter the action and target that was proposed.
+													The hash must match before you can approve — the
+													chain rejects anything that doesn't.
+												</p>
+												<div className="flex flex-wrap gap-2 items-end">
+													<select
+														className="input-field text-xs py-1 px-2"
+														value={ov.action}
+														onChange={(e) =>
+															setOverrideField(
+																entry.callHash,
+																"action",
+																e.target.value,
+															)
+														}
+													>
+														<option value="addMedic">Add Medic</option>
+														<option value="removeMedic">
+															Remove Medic
+														</option>
+														<option value="transferOwnership">
+															Transfer Ownership
+														</option>
+													</select>
+													<input
+														className="input-field text-xs py-1 px-2 flex-1 min-w-[160px] font-mono"
+														placeholder="0x… target H160"
+														value={ov.target}
+														onChange={(e) =>
+															setOverrideField(
+																entry.callHash,
+																"target",
+																e.target.value,
+															)
+														}
+													/>
+													<div className="flex gap-1">
+														{accounts.map((a) => (
+															<button
+																key={a.evmAddress}
+																className="btn-outline text-xs px-2 py-1"
+																onClick={() =>
+																	setOverrideField(
+																		entry.callHash,
+																		"target",
+																		a.evmAddress,
+																	)
+																}
+															>
+																{a.name}
+															</button>
+														))}
+													</div>
+												</div>
+												<div className="flex items-center gap-2">
+													<button
+														className="btn-secondary text-xs px-2 py-1"
+														onClick={() =>
+															verifyOverrideHash(
+																entry.callHash,
+																ov.action,
+																ov.target,
+															)
+														}
+														disabled={
+															loading ||
+															!/^0x[0-9a-fA-F]{40}$/.test(
+																ov.target.trim(),
+															)
+														}
+													>
+														Verify hash
+													</button>
+													{ov.hashOk === true && (
+														<span className="text-accent-green text-xs font-medium">
+															✓ hash matches — safe to approve
+														</span>
+													)}
+													{ov.hashOk === false && (
+														<span className="text-accent-red text-xs">
+															✗ mismatch — wrong action or target
+															address
+														</span>
+													)}
+												</div>
+											</div>
+										);
+									})()}
 							</div>
 						))}
 					</div>
@@ -648,7 +784,7 @@ export default function GovernanceDashboard() {
 					</button>
 				</div>
 				<div className="flex gap-2 flex-wrap">
-					{devAccounts.map((a) => (
+					{accounts.map((a) => (
 						<button
 							key={a.name}
 							className="btn-secondary text-xs px-2 py-0.5"

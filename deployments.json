@@ -4,13 +4,13 @@
   "medicalMarket": "0x3ed62137c5db927cb137c26455969116bf0c23cb",
   "medicAuthority": "0x962c0940d72e7db6c9a5f81f1ca87d8db2b82a23",
   "multisig": {
-    "ss58": "5DjYJStmdZ2rcqXbXGX7TW85JsrW6uG4y9MUcLq2BoPMpRA7",
-    "h160": "0x9549ff5910afff47319cba6acd90c683278f267f",
+    "ss58": "5HQNAsn1bx9GnCY9aqM7syUH4He1nX2VR2gCyqj3PFmFCmqZ",
+    "h160": "0xd9122bd9ceb311d1559cc9bd33f1df72a8b8fd91",
     "threshold": 2,
     "signatories": [
-      "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
-      "5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y",
-      "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+      "5D8A5CGToab25BrwDN2AbrQz8znyQtK1WfDyZJeoq5ebA4fU",
+      "5GpFurRUrA9sU9td3GX3wLdoyhD6jTSAgkLHELtpCFByD21u",
+      "5CQ1faJPWoc6AG2QdJq3d38vmGc7raGGmr8kLB6wLwW4LT7h"
     ]
   }
 }

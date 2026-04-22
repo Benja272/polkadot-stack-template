@@ -241,17 +241,24 @@ export async function getPendingForCall(
 }
 
 function keyToHex(v: unknown): `0x${string}` {
-	if (typeof v === "string") return (v.startsWith("0x") ? v : "0x" + v) as `0x${string}`;
-	if (v instanceof Uint8Array)
-		return ("0x" +
+	let hex: string;
+	if (typeof v === "string") hex = v.startsWith("0x") ? v : "0x" + v;
+	else if (v instanceof Uint8Array)
+		hex =
+			"0x" +
 			Array.from(v)
 				.map((b) => b.toString(16).padStart(2, "0"))
-				.join("")) as `0x${string}`;
-	const a = v as AnyApi;
-	if (typeof a?.asHex === "function") return a.asHex() as `0x${string}`;
-	if (typeof a?.asBytes === "function") return keyToHex(a.asBytes());
-	console.error("[keyToHex] unknown type:", typeof v, v);
-	throw new Error(`Cannot convert storage key to hex: ${typeof v}`);
+				.join("");
+	else {
+		const a = v as AnyApi;
+		if (typeof a?.asHex === "function") hex = a.asHex() as string;
+		else if (typeof a?.asBytes === "function") return keyToHex(a.asBytes());
+		else {
+			console.error("[keyToHex] unknown type:", typeof v, v);
+			throw new Error(`Cannot convert storage key to hex: ${typeof v}`);
+		}
+	}
+	return hex.toLowerCase() as `0x${string}`;
 }
 
 export async function cancelProposal(
