@@ -20,7 +20,7 @@ import {
 	I5sesotjlssv2d,
 	Iffmde3ekjedi9,
 	I4mddgoa69c0a2,
-	I6rcro8alcqots,
+	I7db9q24d9qhif,
 	I95g6i7ilua7lq,
 	Ieniouoqkq4icf,
 	Phase,
@@ -70,7 +70,6 @@ import {
 	Iejeo53sea6n4q,
 	I53esa2ms463bk,
 	Ib4jhb8tt3uung,
-	I7offqqltf3agj,
 	I834nfrf667ag1,
 	I14i9pui8lc778,
 	I8t4pajubp34g3,
@@ -103,12 +102,12 @@ import {
 	I9iq22t0burs89,
 	I5u8olqbbvfnvf,
 	I5utcetro501ir,
-	Iaalag4sajqdff,
-	I8nd3h8unsth6v,
+	Icl5ptkns9guip,
+	I6lauacft2ti1i,
 	I8k3rnvpeeh4hv,
-	Ifup0v752q8jvh,
-	I9dogfdq00v6br,
-	Ie75pdmrsbc71n,
+	I6add6fgga670n,
+	I9naal9ueipf9d,
+	Ibfj2v0k9mceop,
 	Ideaemvoneh309,
 	I3d9o9d7epp66v,
 	I6lqh1vgb4mcja,
@@ -134,21 +133,20 @@ import {
 	Ie1uso9m8rt5cf,
 	I40pqum1mu8qg3,
 	I1r4c2ghbtvjuc,
-	I1jm8m1rh9e20v,
 	Ida37oe44osb06,
 	I6v02o6j4snahe,
 	I27569neuh5t1o,
 	Id92o6smntb9m5,
 	I5nmb2hfkgk9ol,
 	Iav55bcqlrqn51,
-	I8rgbuguu0r385,
+	Ieg1lv260o0mre,
 	I10ra4g1rl6k2f,
 	I1uihehkdsggvp,
 	Ia82mnkmeo2rhc,
-	I1r3pbre2pbk42,
+	I7sabo25l3stf,
 	Icbccs0ug47ilf,
 	I855j4i3kr8ko1,
-	I301j27dgc96v5,
+	I4750daehfkto0,
 	Idd7hd99u0ho0n,
 	Iafscmv8tjf0ou,
 	I100l07kaehdlp,
@@ -166,11 +164,11 @@ import {
 	Iaa6lo6ksjs4p7,
 	Iph9c4rn81ub2,
 	Ier2cke86dqbr2,
-	Iegiuu1igi1d3c,
+	Ifote6957d2e54,
 	I5rtkmhm2dng4u,
 	Iep27ialq4a7o7,
 	Iasu5jvoqr43mv,
-	I3uo4gtrvs4i80,
+	I6b805pjs5mnkk,
 	I5qolde99acmd1,
 	I8gtde5abn1g9a,
 	I39t01nnod9109,
@@ -209,10 +207,9 @@ import {
 	I7crucfnonitkn,
 	I7tmrp94r9sq4n,
 	I3uua81e9uvgnp,
-	I9p6tgcfbrrlod,
 	I7svbvm6hg57aj,
 	I8jhsbaiultviu,
-	Idrmne02mqlgti,
+	I18akrg4rm5a10,
 	I5r8t4iaend96p,
 	Iaqet9jc3ihboe,
 	Ic952bubvq4k7d,
@@ -220,7 +217,7 @@ import {
 	Iabpgqcjikia83,
 	I4gil44d08grh,
 	I7u915mvkdsb08,
-	I51fc7k1hjr1t8,
+	I569p8n71gct0o,
 	If7uv525tdvv7a,
 	I2an1fs2eiebjp,
 	TransactionValidityTransactionSource,
@@ -228,7 +225,7 @@ import {
 	Icerf8h8pdu8ss,
 	I6spmpef2c7svf,
 	Iei2mvq0mjvt81,
-	Ifeps06gn4308f,
+	I46p37uabd8r44,
 	Ic1d4u2opv3fst,
 	Ico18ks790i2bl,
 	I815pbp5omtss,
@@ -239,20 +236,20 @@ import {
 	I4totqt881mlti,
 	I4s6vifaf8k998,
 	I35p85j063s0il,
-	I4ehfioavudv4i,
+	I4cj6r991a6dov,
 	I9sijb8gfrns29,
-	I6be913iq796os,
+	Ib0osdi0e4sb3o,
 	I6f9v7emp7t5ba,
 	Ida7d8eqrkav55,
 	Idmrtv8jbbitnu,
-	Iabkm12ro9ocjb,
-	I4auf8deg30s4e,
+	Ietfi8lmq3u9us,
+	I1rg0cm90sted2,
 	I63nhnkgg114n5,
 	I1l7ajs6s9ur3a,
 	Ice9mpbhevl5b7,
 	Idt5popft6i714,
 	I512dtcl0pn07c,
-	I9534japht9jdl,
+	I5deomk4ts102v,
 } from "./common-types";
 type AnonymousEnum<T extends {}> = T & {
 	__anonymous: true;
@@ -343,7 +340,7 @@ type IStorage = {
 		 * Events have a large in-memory size. Box the events to not go out-of-memory
 		 * just in case someone still reads them from within the runtime.
 		 */
-		Events: StorageDescriptor<[], Anonymize<I6rcro8alcqots>, false, never>;
+		Events: StorageDescriptor<[], Anonymize<I7db9q24d9qhif>, false, never>;
 		/**
 		 * The number of events in the `Events<T>` list.
 		 */
@@ -958,18 +955,6 @@ type IStorage = {
 		 */
 		Pages: StorageDescriptor<Anonymize<Ib4jhb8tt3uung>, Anonymize<I53esa2ms463bk>, true, never>;
 	};
-	TemplatePallet: {
-		/**
-		 * Storage for proof-of-existence claims.
-		 * Maps a 32-byte hash to the claim details (owner, block number).
-		 */
-		Claims: StorageDescriptor<
-			[Key: FixedSizeBinary<32>],
-			Anonymize<I7offqqltf3agj>,
-			true,
-			never
-		>;
-	};
 	Revive: {
 		/**
 		 * A mapping from a contract's code hash to its code.
@@ -1268,7 +1253,7 @@ type ICalls = {
 		/**
 		 * Authenticates the sudo key and dispatches a function call with `Root` origin.
 		 */
-		sudo: TxDescriptor<Anonymize<Iaalag4sajqdff>>;
+		sudo: TxDescriptor<Anonymize<Icl5ptkns9guip>>;
 		/**
 		 * Authenticates the sudo key and dispatches a function call with `Root` origin.
 		 * This function does not check the weight of the call, and instead allows the
@@ -1276,7 +1261,7 @@ type ICalls = {
 		 *
 		 * The dispatch origin for this call must be _Signed_.
 		 */
-		sudo_unchecked_weight: TxDescriptor<Anonymize<I8nd3h8unsth6v>>;
+		sudo_unchecked_weight: TxDescriptor<Anonymize<I6lauacft2ti1i>>;
 		/**
 		 * Authenticates the current sudo key and sets the given AccountId (`new`) as the new sudo
 		 * key.
@@ -1288,7 +1273,7 @@ type ICalls = {
 		 *
 		 * The dispatch origin for this call must be _Signed_.
 		 */
-		sudo_as: TxDescriptor<Anonymize<Ifup0v752q8jvh>>;
+		sudo_as: TxDescriptor<Anonymize<I6add6fgga670n>>;
 		/**
 		 * Permanently removes the sudo key.
 		 *
@@ -1311,7 +1296,7 @@ type ICalls = {
 		 * ## Complexity
 		 * O(Z + C) where Z is the length of the call and C its execution weight.
 		 */
-		as_multi_threshold_1: TxDescriptor<Anonymize<I9dogfdq00v6br>>;
+		as_multi_threshold_1: TxDescriptor<Anonymize<I9naal9ueipf9d>>;
 		/**
 		 * Register approval for a dispatch to be made from a deterministic composite account if
 		 * approved by a total of `threshold - 1` of `other_signatories`.
@@ -1353,7 +1338,7 @@ type ICalls = {
 		 * - Storage: inserts one item, value size bounded by `MaxSignatories`, with a deposit
 		 * taken for its lifetime of `DepositBase + threshold * DepositFactor`.
 		 */
-		as_multi: TxDescriptor<Anonymize<Ie75pdmrsbc71n>>;
+		as_multi: TxDescriptor<Anonymize<Ibfj2v0k9mceop>>;
 		/**
 		 * Register approval for a dispatch to be made from a deterministic composite account if
 		 * approved by a total of `threshold - 1` of `other_signatories`.
@@ -1889,21 +1874,6 @@ type ICalls = {
 		 */
 		execute_overweight: TxDescriptor<Anonymize<I1r4c2ghbtvjuc>>;
 	};
-	TemplatePallet: {
-		/**
-		 * Create a new proof-of-existence claim for the given hash.
-		 *
-		 * The hash must not already be claimed. The caller becomes the owner,
-		 * and the current block number is recorded.
-		 */
-		create_claim: TxDescriptor<Anonymize<I1jm8m1rh9e20v>>;
-		/**
-		 * Revoke an existing proof-of-existence claim.
-		 *
-		 * Only the original claim owner can revoke it. The storage entry is removed.
-		 */
-		revoke_claim: TxDescriptor<Anonymize<I1jm8m1rh9e20v>>;
-	};
 	Revive: {
 		/**
 		 * A raw EVM transaction, typically dispatched by an Ethereum JSON-RPC server.
@@ -2032,7 +2002,7 @@ type ICalls = {
 		 * * `call`: The Substrate runtime call to execute.
 		 * * `transaction_encoded`: The RLP encoding of the Ethereum transaction,
 		 */
-		eth_substrate_call: TxDescriptor<Anonymize<I8rgbuguu0r385>>;
+		eth_substrate_call: TxDescriptor<Anonymize<Ieg1lv260o0mre>>;
 		/**
 		 * Upload new `code` without instantiating a contract from it.
 		 *
@@ -2091,7 +2061,7 @@ type ICalls = {
 		 * is the `AccountId20` with the last 12 bytes set to `0xEE`. This is essentially a
 		 * recovery function in case an `AccountId20` was used without creating a mapping first.
 		 */
-		dispatch_as_fallback_account: TxDescriptor<Anonymize<Iaalag4sajqdff>>;
+		dispatch_as_fallback_account: TxDescriptor<Anonymize<Icl5ptkns9guip>>;
 	};
 };
 type IEvent = {
@@ -2103,7 +2073,7 @@ type IEvent = {
 		/**
 		 * An extrinsic failed.
 		 */
-		ExtrinsicFailed: PlainDescriptor<Anonymize<I1r3pbre2pbk42>>;
+		ExtrinsicFailed: PlainDescriptor<Anonymize<I7sabo25l3stf>>;
 		/**
 		 * `:code` was updated.
 		 */
@@ -2127,7 +2097,7 @@ type IEvent = {
 		/**
 		 * An invalid authorized upgrade was rejected while trying to apply it.
 		 */
-		RejectedInvalidAuthorizedUpgrade: PlainDescriptor<Anonymize<I301j27dgc96v5>>;
+		RejectedInvalidAuthorizedUpgrade: PlainDescriptor<Anonymize<I4750daehfkto0>>;
 	};
 	ParachainSystem: {
 		/**
@@ -2290,7 +2260,7 @@ type IEvent = {
 		/**
 		 * A sudo call just took place.
 		 */
-		Sudid: PlainDescriptor<Anonymize<Iegiuu1igi1d3c>>;
+		Sudid: PlainDescriptor<Anonymize<Ifote6957d2e54>>;
 		/**
 		 * The sudo key has been updated.
 		 */
@@ -2302,7 +2272,7 @@ type IEvent = {
 		/**
 		 * A [sudo_as](Pallet::sudo_as) call just took place.
 		 */
-		SudoAsDone: PlainDescriptor<Anonymize<Iegiuu1igi1d3c>>;
+		SudoAsDone: PlainDescriptor<Anonymize<Ifote6957d2e54>>;
 	};
 	Multisig: {
 		/**
@@ -2316,7 +2286,7 @@ type IEvent = {
 		/**
 		 * A multisig operation has been executed.
 		 */
-		MultisigExecuted: PlainDescriptor<Anonymize<I3uo4gtrvs4i80>>;
+		MultisigExecuted: PlainDescriptor<Anonymize<I6b805pjs5mnkk>>;
 		/**
 		 * A multisig operation has been cancelled.
 		 */
@@ -2587,16 +2557,6 @@ type IEvent = {
 		 */
 		NewStatement: PlainDescriptor<Anonymize<I3uua81e9uvgnp>>;
 	};
-	TemplatePallet: {
-		/**
-		 * A new claim was created.
-		 */
-		ClaimCreated: PlainDescriptor<Anonymize<I9p6tgcfbrrlod>>;
-		/**
-		 * A claim was revoked by its owner.
-		 */
-		ClaimRevoked: PlainDescriptor<Anonymize<I9p6tgcfbrrlod>>;
-	};
 	Revive: {
 		/**
 		 * A custom event emitted by the contract.
@@ -2614,7 +2574,7 @@ type IEvent = {
 		 * To distinguish reverted calls from successful ones, this event is emitted
 		 * for failed Ethereum transactions.
 		 */
-		EthExtrinsicRevert: PlainDescriptor<Anonymize<Idrmne02mqlgti>>;
+		EthExtrinsicRevert: PlainDescriptor<Anonymize<I18akrg4rm5a10>>;
 	};
 };
 type IError = {
@@ -3077,20 +3037,6 @@ type IError = {
 		 * Another call is in progress and needs to finish before this call can happen.
 		 */
 		RecursiveDisallowed: PlainDescriptor<undefined>;
-	};
-	TemplatePallet: {
-		/**
-		 * This hash has already been claimed.
-		 */
-		AlreadyClaimed: PlainDescriptor<undefined>;
-		/**
-		 * The caller is not the owner of this claim.
-		 */
-		NotClaimOwner: PlainDescriptor<undefined>;
-		/**
-		 * No claim exists for this hash.
-		 */
-		ClaimNotFound: PlainDescriptor<undefined>;
 	};
 	Revive: {
 		/**
@@ -3842,7 +3788,7 @@ type IRuntimeCalls = {
 		 * Returns an inclusion outcome which specifies if this extrinsic is included in
 		 * this block or not.
 		 */
-		apply_extrinsic: RuntimeDescriptor<[extrinsic: Binary], Anonymize<I51fc7k1hjr1t8>>;
+		apply_extrinsic: RuntimeDescriptor<[extrinsic: Binary], Anonymize<I569p8n71gct0o>>;
 		/**
 		 * Finish the current block.
 		 */
@@ -3954,14 +3900,14 @@ type IRuntimeCalls = {
 		 * Query information of a dispatch class, weight, and fee of a given encoded `Call`.
 		 */
 		query_call_info: RuntimeDescriptor<
-			[call: Anonymize<Ifeps06gn4308f>, len: number],
+			[call: Anonymize<I46p37uabd8r44>, len: number],
 			Anonymize<I6spmpef2c7svf>
 		>;
 		/**
 		 * Query fee details of a given encoded `Call`.
 		 */
 		query_call_fee_details: RuntimeDescriptor<
-			[call: Anonymize<Ifeps06gn4308f>, len: number],
+			[call: Anonymize<I46p37uabd8r44>, len: number],
 			Anonymize<Iei2mvq0mjvt81>
 		>;
 		/**
@@ -4101,7 +4047,7 @@ type IRuntimeCalls = {
 				storage_deposit_limit: Anonymize<I35p85j063s0il>,
 				input_data: Binary,
 			],
-			Anonymize<I4ehfioavudv4i>
+			Anonymize<I4cj6r991a6dov>
 		>;
 		/**
 		 * Instantiate a new contract.
@@ -4118,7 +4064,7 @@ type IRuntimeCalls = {
 				data: Binary,
 				salt: Anonymize<I4s6vifaf8k998>,
 			],
-			Anonymize<I6be913iq796os>
+			Anonymize<Ib0osdi0e4sb3o>
 		>;
 		/**
 		 * Perform an Ethereum call.
@@ -4143,7 +4089,7 @@ type IRuntimeCalls = {
 		 */
 		upload_code: RuntimeDescriptor<
 			[origin: SS58String, code: Binary, storage_deposit_limit: Anonymize<I35p85j063s0il>],
-			Anonymize<Iabkm12ro9ocjb>
+			Anonymize<Ietfi8lmq3u9us>
 		>;
 		/**
 		 * Query a given storage key in a given contract.
@@ -4154,7 +4100,7 @@ type IRuntimeCalls = {
 		 */
 		get_storage: RuntimeDescriptor<
 			[address: FixedSizeBinary<20>, key: FixedSizeBinary<32>],
-			Anonymize<I4auf8deg30s4e>
+			Anonymize<I1rg0cm90sted2>
 		>;
 		/**
 		 * Query a given variable-sized storage key in a given contract.
@@ -4165,7 +4111,7 @@ type IRuntimeCalls = {
 		 */
 		get_storage_var_key: RuntimeDescriptor<
 			[address: FixedSizeBinary<20>, key: Binary],
-			Anonymize<I4auf8deg30s4e>
+			Anonymize<I1rg0cm90sted2>
 		>;
 		/**
 		 * Traces the execution of an entire block and returns call traces.
@@ -4229,7 +4175,7 @@ type IRuntimeCalls = {
 		>;
 	};
 };
-export type Stack_templateDispatchError = Anonymize<I9534japht9jdl>;
+export type Stack_templateDispatchError = Anonymize<I5deomk4ts102v>;
 type IAsset = PlainDescriptor<void>;
 export type Stack_templateExtensions = {};
 type PalletsTypedef = {
@@ -4260,7 +4206,7 @@ export type Stack_templateEvents = EventsFromPalletsDef<PalletsTypedef>;
 export type Stack_templateErrors = ErrorsFromPalletsDef<PalletsTypedef>;
 export type Stack_templateConstants = ConstFromPalletsDef<PalletsTypedef>;
 export type Stack_templateViewFns = ViewFnsFromPalletsDef<PalletsTypedef>;
-export type Stack_templateCallData = Anonymize<Ifeps06gn4308f> & {
+export type Stack_templateCallData = Anonymize<I46p37uabd8r44> & {
 	value: {
 		type: string;
 	};
@@ -4378,7 +4324,6 @@ type AllInteractions = {
 			"AuthorizedAliases",
 		];
 		MessageQueue: ["BookStateFor", "ServiceHead", "Pages"];
-		TemplatePallet: ["Claims"];
 		Revive: [
 			"PristineCode",
 			"CodeInfoOf",
@@ -4469,7 +4414,6 @@ type AllInteractions = {
 			"remove_all_authorized_aliases",
 		];
 		MessageQueue: ["reap_page", "execute_overweight"];
-		TemplatePallet: ["create_claim", "revoke_claim"];
 		Revive: [
 			"eth_transact",
 			"call",
@@ -4594,7 +4538,6 @@ type AllInteractions = {
 		CumulusXcm: ["InvalidFormat", "UnsupportedVersion", "ExecutedDownward"];
 		MessageQueue: ["ProcessingFailed", "Processed", "OverweightEnqueued", "PageReaped"];
 		Statement: ["NewStatement"];
-		TemplatePallet: ["ClaimCreated", "ClaimRevoked"];
 		Revive: ["ContractEmitted", "Instantiated", "EthExtrinsicRevert"];
 	};
 	errors: {
@@ -4722,7 +4665,6 @@ type AllInteractions = {
 			"QueuePaused",
 			"RecursiveDisallowed",
 		];
-		TemplatePallet: ["AlreadyClaimed", "NotClaimOwner", "ClaimNotFound"];
 		Revive: [
 			"InvalidSchedule",
 			"InvalidCallFlags",
