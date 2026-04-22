@@ -85,6 +85,26 @@ export const medicAuthorityFullAbi = [
 		outputs: [{ name: "", type: "bool" }],
 		stateMutability: "view",
 	},
+	{
+		type: "function",
+		name: "hintProposal",
+		inputs: [
+			{ name: "callHash", type: "bytes32" },
+			{ name: "action", type: "string" },
+			{ name: "target", type: "address" },
+		],
+		outputs: [],
+		stateMutability: "nonpayable",
+	},
+	{
+		type: "event",
+		name: "ProposalHinted",
+		inputs: [
+			{ name: "callHash", type: "bytes32", indexed: true },
+			{ name: "action", type: "string", indexed: false },
+			{ name: "target", type: "address", indexed: false },
+		],
+	},
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -313,4 +333,56 @@ export async function listPending(
 			approvals: entry.value.approvals,
 		},
 	}));
+}
+
+// ---------------------------------------------------------------------------
+// On-chain hint emission (direct Revive.call, not via multisig)
+// ---------------------------------------------------------------------------
+
+export function buildHintProposalTx(
+	api: AnyApi,
+	contract: `0x${string}`,
+	callHash: `0x${string}`,
+	action: AuthorityMethod,
+	target: `0x${string}`,
+) {
+	const calldata = encodeFunctionData({
+		abi: medicAuthorityFullAbi,
+		functionName: "hintProposal",
+		args: [callHash as `0x${string}`, action, target],
+	});
+	return buildReviveInnerTx(api, contract, calldata);
+}
+
+export async function submitHintProposal(
+	api: AnyApi,
+	signer: PolkadotSigner,
+	contract: `0x${string}`,
+	callHash: `0x${string}`,
+	action: AuthorityMethod,
+	target: `0x${string}`,
+): Promise<{ txHash: string }> {
+	const tx = buildHintProposalTx(api, contract, callHash, action, target);
+
+	type FoundState = TxBestBlocksState & {
+		found: true;
+		ok: boolean;
+		txHash: string;
+		dispatchError?: unknown;
+	};
+
+	const result = (await firstValueFrom(
+		tx
+			.signSubmitAndWatch(signer)
+			.pipe(
+				filter(
+					(e): e is FoundState =>
+						(e as TxBestBlocksState).type === "txBestBlocksState" &&
+						(e as { found?: boolean }).found === true,
+				),
+			),
+	)) as FoundState;
+
+	if (!result.ok) throw new Error(JSON.stringify(result.dispatchError));
+	return { txHash: result.txHash };
 }

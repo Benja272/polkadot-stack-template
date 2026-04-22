@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { type Address, parseEther, formatEther } from "viem";
 import { medicalMarketAbi, getPublicClient } from "../config/evm";
 import VerifiedBadge from "../components/VerifiedBadge";
@@ -49,6 +50,7 @@ function formatRecordedAt(unixSeconds: number): string {
 }
 
 export default function PatientDashboard() {
+	const navigate = useNavigate();
 	const ethRpcUrl = useChainStore((s) => s.ethRpcUrl);
 	const wsUrl = useChainStore((s) => s.wsUrl);
 
@@ -714,20 +716,37 @@ export default function PatientDashboard() {
 									)}
 
 									{listing.active && !hasPendingOrder && (
-										<button
-											onClick={() => cancelListing(listing.id)}
-											disabled={loading}
-											className="px-2 py-1 rounded-md bg-accent-red/10 text-accent-red text-xs font-medium hover:bg-accent-red/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-										>
-											{loading ? (
-												<>
-													<Spinner />
-													Cancelling…
-												</>
-											) : (
-												"Cancel Listing"
+										<div className="flex gap-2 flex-wrap">
+											<button
+												onClick={() => cancelListing(listing.id)}
+												disabled={loading}
+												className="px-2 py-1 rounded-md bg-accent-red/10 text-accent-red text-xs font-medium hover:bg-accent-red/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+											>
+												{loading ? (
+													<>
+														<Spinner />
+														Cancelling…
+													</>
+												) : (
+													"Cancel Listing"
+												)}
+											</button>
+											{hasPackage && pkg && (
+												<button
+													onClick={() =>
+														navigate("/share", {
+															state: {
+																signedRecord: pkg,
+																listingId: listing.id.toString(),
+															},
+														})
+													}
+													className="px-2 py-1 rounded-md bg-polka-500/10 text-polka-400 text-xs font-medium hover:bg-polka-500/20 transition-colors"
+												>
+													Share with Doctor →
+												</button>
 											)}
-										</button>
+										</div>
 									)}
 								</div>
 							);

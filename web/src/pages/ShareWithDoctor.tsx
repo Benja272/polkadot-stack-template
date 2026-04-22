@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { type Address } from "viem";
 import { medicalMarketAbi, getPublicClient } from "../config/evm";
 import Spinner from "../components/Spinner";
@@ -160,6 +161,7 @@ function KnownDoctorsList({
 }
 
 export default function ShareWithDoctor() {
+	const location = useLocation();
 	const ethRpcUrl = useChainStore((s) => s.ethRpcUrl);
 	const wsUrl = useChainStore((s) => s.wsUrl);
 
@@ -193,6 +195,11 @@ export default function ShareWithDoctor() {
 			.then(setAccounts)
 			.catch(() => setAccounts(devAccounts));
 	}, []);
+
+	useEffect(() => {
+		const state = location.state as { signedRecord?: SignedRecord; listingId?: string } | null;
+		if (state?.signedRecord) setImportedPackage(state.signedRecord);
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 	useEffect(() => {
 		const stored = localStorage.getItem(storageKey);
@@ -516,6 +523,14 @@ export default function ShareWithDoctor() {
 					Drop a v3 medic-signed record (downloaded from the Medic Signing Tool). The
 					record stays local until you pick a recipient and click Share.
 				</p>
+
+				{(location.state as { listingId?: string } | null)?.listingId &&
+					importedPackage && (
+						<p className="text-xs text-polka-400 font-medium">
+							Pre-loaded from Listing #
+							{(location.state as { listingId: string }).listingId}
+						</p>
+					)}
 
 				{!importedPackage ? (
 					<>

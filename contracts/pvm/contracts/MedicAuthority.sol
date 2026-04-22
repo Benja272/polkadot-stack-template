@@ -48,4 +48,11 @@ contract MedicAuthority {
 		isVerifiedMedic[medic] = false;
 		emit MedicRemoved(medic, msg.sender);
 	}
+
+	/// @notice Anyone can hint what a multisig proposal is for. No auth — the callHash
+	///         ties this to the actual on-chain MultisigInfo entry; approvers recompute
+	///         the hash client-side to verify before signing.
+	function hintProposal(bytes32 callHash, string calldata action, address target) external {
+		emit ProposalHinted(callHash, action, target);
+	}
 }

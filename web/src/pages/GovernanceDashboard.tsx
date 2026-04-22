@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { parseAbiItem } from "viem";
 import { deployments } from "../config/deployments";
 import { getPublicClient } from "../config/evm";
 import { devAccounts, getAccountsWithFallback, type AppAccount } from "../hooks/useAccount";
@@ -18,6 +19,7 @@ import {
 	approve,
 	getPendingForCall,
 	listPending,
+	submitHintProposal,
 	type AuthorityMethod,
 	type MultisigInfo,
 	type Timepoint,
@@ -168,18 +170,59 @@ export default function GovernanceDashboard() {
 	}, [ethRpcUrl, authorityAddr, accounts]);
 
 	const readPending = useCallback(async () => {
-		if (!ms) return;
+		if (!ms || !authorityAddr) return;
 		try {
 			const client = getClient(wsUrl);
 			const descriptor = await getStackTemplateDescriptor();
 			const api = client.getTypedApi(descriptor);
 			const entries = await listPending(api, ms.ss58);
 			const hints = loadHints();
+
+			// For entries without a cached localStorage hint, query ProposalHinted EVM logs
+			const evmClient = getPublicClient(ethRpcUrl);
+			const proposalHintedEvent = parseAbiItem(
+				"event ProposalHinted(bytes32 indexed callHash, string action, address target)",
+			);
+			const missingHashes = entries
+				.filter((e) => !lookupHint(hints, e.callHash))
+				.map((e) => e.callHash);
+
+			if (missingHashes.length > 0) {
+				for (const callHash of missingHashes) {
+					try {
+						const logs = await evmClient.getLogs({
+							address: authorityAddr,
+							event: proposalHintedEvent,
+							args: { callHash },
+							fromBlock: 0n,
+						});
+						if (logs.length > 0) {
+							const last = logs[logs.length - 1];
+							const { action, target } = last.args as {
+								action: string;
+								target: string;
+							};
+							if (action && target) {
+								const hint: PendingHint = {
+									action: action as AuthorityMethod,
+									target: target as `0x${string}`,
+									proposedAt: 0,
+								};
+								saveHint(callHash, hint);
+								hints[callHash.toLowerCase()] = hint;
+							}
+						}
+					} catch {
+						// log query failed for this entry — leave hint undefined
+					}
+				}
+			}
+
 			setPendingEntries(entries.map((e) => ({ ...e, hint: lookupHint(hints, e.callHash) })));
 		} catch (err) {
 			console.error("[readPending]", err);
 		}
-	}, [wsUrl, ms]);
+	}, [wsUrl, ms, authorityAddr, ethRpcUrl]);
 
 	useEffect(() => {
 		readStatuses();
@@ -220,6 +263,22 @@ export default function GovernanceDashboard() {
 				target,
 				proposedAt: Date.now(),
 			});
+
+			// Emit hint on-chain so approvers in other sessions see action + target automatically
+			try {
+				setTxStatus("Emitting on-chain hint…");
+				await submitHintProposal(
+					api,
+					proposer.signer,
+					authorityAddr,
+					result.callHash,
+					actionMethod,
+					target,
+				);
+			} catch (hintErr) {
+				console.warn("[hintProposal] non-fatal:", hintErr);
+			}
+
 			setTxStatus(
 				`Proposal submitted. CallHash: ${shortHash(callHash)}  (tx: ${result.txHash.slice(0, 14)}…)`,
 			);
