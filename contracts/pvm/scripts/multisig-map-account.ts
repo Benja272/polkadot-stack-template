@@ -17,7 +17,7 @@ import { getPolkadotSigner } from "polkadot-api/signer";
 import { encodeAddress, cryptoWaitReady, blake2AsHex } from "@polkadot/util-crypto";
 import { Keyring } from "@polkadot/keyring";
 import { stack_template } from "@polkadot-api/descriptors";
-import { readDeployments } from "./_deployments";
+import { readDeployments, inferNetworkFromRpc } from "./_deployments";
 import { submitExtrinsic } from "./_papi";
 
 const WS_URL = process.env.SUBSTRATE_RPC_WS ?? "ws://127.0.0.1:10044";
@@ -42,7 +42,7 @@ async function main() {
 	}
 
 	await cryptoWaitReady();
-	const deployments = readDeployments();
+	const deployments = readDeployments(inferNetworkFromRpc(WS_URL));
 	if (!deployments.multisig) throw new Error("run set-deployments.ts first");
 	const { threshold, signatories } = deployments.multisig;
 

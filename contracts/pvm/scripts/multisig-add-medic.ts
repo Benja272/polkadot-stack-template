@@ -29,7 +29,7 @@ import { encodeAddress, cryptoWaitReady, blake2AsHex } from "@polkadot/util-cryp
 import { Keyring } from "@polkadot/keyring";
 import { encodeFunctionData } from "viem";
 import { stack_template } from "@polkadot-api/descriptors";
-import { readDeployments } from "./_deployments";
+import { readDeployments, inferNetworkFromRpc } from "./_deployments";
 import { submitExtrinsic } from "./_papi";
 
 // ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ async function main() {
 	await cryptoWaitReady();
 
 	// Load deployments.
-	const deployments = readDeployments();
+	const deployments = readDeployments(inferNetworkFromRpc(WS_URL));
 	if (!deployments.multisig) {
 		console.error(
 			"Error: deployments.json is missing 'multisig'.\n  Run: npx ts-node --transpile-only scripts/set-deployments.ts",

@@ -7,9 +7,16 @@
  *   npm run set-deployments -- --local       # compile + deploy to local node (http://127.0.0.1:8545)
  *   npm run set-deployments -- --skip-deploy # only recompute multisig, keep existing contract addresses
  *   npm run set-deployments -- --threshold 2 --ss58-prefix 42
+ *   npm run set-deployments -- --wallets-dir ../other-keystores
  *
- * Reads VITE_ACCOUNT_0_PK (deployer), VITE_ACCOUNT_0_PK / _1_PK / _2_PK (council multisig)
- * from web/.env.local.
+ * Signatories (multisig members) are read from Polkadot.js keystore JSONs
+ * (`Council1.json`, `Council2.json`, `Medic.json`) sitting next to the repo root
+ * (default: `../` relative to project root). These match the accounts imported
+ * into Talisman / Polkadot.js extension and are what pallet-multisig checks at
+ * sign time.
+ *
+ * Deployer (pays gas, no on-chain role) — VITE_ACCOUNT_0_PK from web/.env.local
+ * on testnet; Alice's well-known dev key on --local.
  */
 
 import * as fs from "fs";
@@ -29,9 +36,19 @@ import { updateDeployments } from "./_deployments";
 
 const ENV_FILE = path.resolve(__dirname, "../../../web/.env.local");
 const ARTIFACTS_DIR = path.resolve(__dirname, "../artifacts/contracts");
+const DEFAULT_WALLETS_DIR = path.resolve(__dirname, "../../../..");
+const SIGNATORY_FILES = ["Council1.json", "Council2.json", "Medic.json"];
 
 const TESTNET_RPC = "https://services.polkadothub-rpc.com/testnet";
 const LOCAL_RPC = process.env.ETH_RPC_HTTP ?? "http://127.0.0.1:8545";
+
+// Well-known Substrate dev account (Alice). Pre-funded on a fresh local chain.
+// Same value as contracts/pvm/hardhat.config.ts and web/src/config/evm.ts.
+// On --local we deploy from Alice (who has balance). Council PKs are still used
+// to derive the multisig address — but the deployer has no on-chain role in
+// either contract (MedicalMarket is ownerless, MedicAuthority's owner is passed
+// to the constructor), so deploying from Alice is equivalent.
+const ALICE_ETH_KEY = "0x5fb92d6e98884f76de468fa3f6278f8807c48bebc13595d45af5bdc4da702133";
 
 const paseoTestnet = defineChain({
 	id: 420420417,
@@ -65,14 +82,20 @@ function parseEnvFile(filePath: string): Record<string, string> {
 	return vars;
 }
 
-function h160ToAccountId32(h160: string): Uint8Array {
-	const clean = h160.startsWith("0x") ? h160.slice(2) : h160;
-	const bytes = new Uint8Array(32);
-	for (let i = 0; i < 20; i++) {
-		bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
-	}
-	bytes.fill(0xee, 20);
-	return bytes;
+function readSignatoryAddresses(walletsDir: string): string[] {
+	return SIGNATORY_FILES.map((name) => {
+		const p = path.join(walletsDir, name);
+		if (!fs.existsSync(p)) {
+			throw new Error(
+				`Signatory keystore not found: ${p}. Export the account from Polkadot.js / Talisman as a JSON keystore and drop it here, or pass --wallets-dir to point at the directory.`,
+			);
+		}
+		const raw = JSON.parse(fs.readFileSync(p, "utf-8")) as { address?: string };
+		if (!raw.address || typeof raw.address !== "string") {
+			throw new Error(`Keystore ${p} is missing an 'address' field.`);
+		}
+		return raw.address;
+	});
 }
 
 function argValue(argv: string[], flag: string): string | undefined {
@@ -120,26 +143,21 @@ async function main() {
 	const skipDeploy = argv.includes("--skip-deploy");
 	const threshold = parseInt(argValue(argv, "--threshold") ?? "2", 10);
 	const ss58Prefix = parseInt(argValue(argv, "--ss58-prefix") ?? "42", 10);
+	const walletsDir = path.resolve(argValue(argv, "--wallets-dir") ?? DEFAULT_WALLETS_DIR);
 
 	const env = parseEnvFile(ENV_FILE);
 
-	// --- Derive council signatories and multisig address ---
-	const pks = [env.VITE_ACCOUNT_0_PK, env.VITE_ACCOUNT_1_PK, env.VITE_ACCOUNT_2_PK].filter(
-		(pk): pk is string => !!pk && pk !== "0x" && pk.length > 2,
-	);
+	// --- Signatories come from keystore JSONs (Polkadot.js / Talisman exports) ---
+	// These are the accounts that will actually sign asMulti calls, so they must
+	// match what your wallet reports — not a derivation of .env.local private keys.
+	const signatories = readSignatoryAddresses(walletsDir);
 
-	if (pks.length < threshold) {
+	if (signatories.length < threshold) {
 		console.error(
-			`Need at least ${threshold} private keys in web/.env.local (VITE_ACCOUNT_{0,1,2}_PK). Found ${pks.length}.`,
+			`Need at least ${threshold} keystore files in ${walletsDir} (${SIGNATORY_FILES.join(", ")}). Found ${signatories.length}.`,
 		);
 		process.exit(1);
 	}
-
-	const signatories = pks.map((pk) => {
-		const h160 = privateKeyToAccount(pk as `0x${string}`).address;
-		const accountId = h160ToAccountId32(h160);
-		return encodeAddress(accountId, ss58Prefix);
-	});
 
 	const sorted = sortAddresses(signatories, ss58Prefix);
 	const multiAccountId = createKeyMulti(sorted, threshold);
@@ -154,11 +172,15 @@ async function main() {
 	for (const s of sorted) console.log(`    - ${s}`);
 	console.log("");
 
+	const network = isLocal ? "local" : "paseo";
+
 	if (skipDeploy) {
-		updateDeployments({
+		updateDeployments(network, {
 			multisig: { ss58: multiSs58, h160: multisigH160, threshold, signatories: sorted },
 		});
-		console.log("--skip-deploy: multisig updated, contract addresses unchanged.");
+		console.log(
+			`--skip-deploy: multisig updated for ${network}, contract addresses unchanged.`,
+		);
 		return;
 	}
 
@@ -168,12 +190,22 @@ async function main() {
 	console.log("");
 
 	// --- Deploy ---
-	const network = isLocal ? "local" : "Paseo testnet";
+	const networkLabel = isLocal ? "local" : "Paseo testnet";
 	const rpc = isLocal ? LOCAL_RPC : TESTNET_RPC;
 	const chain = isLocal ? localChain : paseoTestnet;
-	const deployerPk = pks[0] as `0x${string}`;
+	// Local: Alice (pre-funded dev account). Paseo: VITE_ACCOUNT_0_PK (user-funded via faucet).
+	// Deployer identity has no on-chain role (MedicalMarket is ownerless, MedicAuthority owner
+	// is passed to the constructor) — it only pays gas.
+	const envPk = env.VITE_ACCOUNT_0_PK;
+	if (!isLocal && (!envPk || envPk === "0x" || envPk.length <= 2)) {
+		console.error(
+			"VITE_ACCOUNT_0_PK is required in web/.env.local to deploy to Paseo. Fund its H160 at https://faucet.polkadot.io.",
+		);
+		process.exit(1);
+	}
+	const deployerPk = (isLocal ? ALICE_ETH_KEY : envPk) as `0x${string}`;
 
-	console.log(`=== Deploying to ${network} (${rpc}) ===`);
+	console.log(`=== Deploying to ${networkLabel} (${rpc}) ===`);
 	console.log(`  Deployer: ${privateKeyToAccount(deployerPk).address}`);
 	console.log("");
 
@@ -189,7 +221,7 @@ async function main() {
 	console.log("");
 
 	// --- Write all deployment files ---
-	updateDeployments({
+	updateDeployments(network, {
 		medicalMarket: marketAddress,
 		medicAuthority: authorityAddress,
 		multisig: { ss58: multiSs58, h160: multisigH160, threshold, signatories: sorted },

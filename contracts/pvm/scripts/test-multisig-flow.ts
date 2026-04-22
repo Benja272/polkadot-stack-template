@@ -35,7 +35,7 @@ import {
 } from "@polkadot/util-crypto";
 import { stack_template } from "@polkadot-api/descriptors";
 import { createPublicClient, http } from "viem";
-import { readDeployments } from "./_deployments";
+import { readDeployments, inferNetworkFromRpc } from "./_deployments";
 import {
 	type Api,
 	buildReviveInnerTx,
@@ -246,7 +246,7 @@ async function main() {
 	console.log(`  WS:       ${WS_URL}`);
 	console.log(`  Eth RPC:  ${ETH_RPC_URL}`);
 
-	const deployments = readDeployments();
+	const deployments = readDeployments(inferNetworkFromRpc(WS_URL));
 	if (!deployments.multisig) {
 		console.error("deployments.json missing 'multisig' — run `npm run set-deployments` first.");
 		process.exit(1);

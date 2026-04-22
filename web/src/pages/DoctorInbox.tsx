@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { type Address, parseAbiItem } from "viem";
 import { getPublicClient } from "../config/evm";
 import Toast from "../components/Toast";
-import { deployments } from "../config/deployments";
+import { getDeploymentForRpc } from "../config/network";
 import { subscribeStatements } from "../hooks/useStatementStore";
 import { useChainStore } from "../store/chainStore";
 import {
@@ -299,7 +299,7 @@ export default function DoctorInbox() {
 	const wsUrl = useChainStore((s) => s.wsUrl);
 
 	const storageKey = `medical-market-address:${ethRpcUrl}`;
-	const defaultAddress = (deployments as Record<string, string | null>).medicalMarket ?? null;
+	const defaultAddress = getDeploymentForRpc(ethRpcUrl).medicalMarket;
 
 	const [contractAddress, setContractAddress] = useState("");
 	const [shares, setShares] = useState<IncomingShare[]>([]);

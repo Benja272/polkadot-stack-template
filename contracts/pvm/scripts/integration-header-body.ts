@@ -47,7 +47,7 @@ import {
 } from "viem";
 import { mulPointEscalar, Base8, order as jubOrder } from "@zk-kit/baby-jubjub";
 import { poseidon2, poseidon4, poseidon8, poseidon16 } from "poseidon-lite";
-import { readDeployments } from "./_deployments";
+import { readDeployments, inferNetworkFromRpc } from "./_deployments";
 import { submitExtrinsic } from "./_papi";
 
 const WS_URL = process.env.SUBSTRATE_RPC_WS ?? "ws://127.0.0.1:9944";
@@ -402,7 +402,7 @@ function assert(cond: unknown, msg: string): asserts cond {
 
 async function main() {
 	await cryptoWaitReady();
-	const deployments = readDeployments();
+	const deployments = readDeployments(inferNetworkFromRpc(WS_URL));
 	if (!deployments.medicalMarket) {
 		throw new Error(
 			"deployments.json missing 'medicalMarket' — run deploy-market.ts --network local first",

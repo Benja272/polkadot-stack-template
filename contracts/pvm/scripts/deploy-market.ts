@@ -25,6 +25,7 @@ async function deployContract(
 async function main() {
 	const isTestnet = hre.network.name === "polkadotTestnet";
 	const chainOption = isTestnet ? { chain: polkadotHubTestnet } : {};
+	const network = isTestnet ? "paseo" : "local";
 
 	const [walletClient] = await hre.viem.getWalletClients(chainOption);
 	const publicClient = await hre.viem.getPublicClient(chainOption);
@@ -33,7 +34,7 @@ async function main() {
 	const marketAddress = await deployContract(walletClient, publicClient, "MedicalMarket");
 	console.log(`MedicalMarket deployed to: ${marketAddress}`);
 
-	updateDeployments({ medicalMarket: marketAddress });
+	updateDeployments(network, { medicalMarket: marketAddress });
 	console.log("Updated deployments.json and web/src/config/deployments.ts");
 }
 

@@ -5,7 +5,7 @@ import { medicalMarketAbi, getPublicClient } from "../config/evm";
 import VerifiedBadge from "../components/VerifiedBadge";
 import Spinner from "../components/Spinner";
 import Toast from "../components/Toast";
-import { deployments } from "../config/deployments";
+import { getDeploymentForRpc } from "../config/network";
 import {
 	submitStatement,
 	checkStatementStoreAvailable,
@@ -55,7 +55,7 @@ export default function PatientDashboard() {
 	const wsUrl = useChainStore((s) => s.wsUrl);
 
 	const storageKey = `medical-market-address:${ethRpcUrl}`;
-	const defaultAddress = (deployments as Record<string, string | null>).medicalMarket ?? null;
+	const defaultAddress = getDeploymentForRpc(ethRpcUrl).medicalMarket;
 
 	const [accounts, setAccounts] = useState<AppAccount[]>(devAccounts);
 	const [selectedAccountIndex, setSelectedAccountIndex] = useState(0);

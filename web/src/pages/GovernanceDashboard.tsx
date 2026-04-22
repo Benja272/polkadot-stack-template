@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { parseAbiItem } from "viem";
-import { deployments } from "../config/deployments";
+import { getDeploymentForRpc } from "../config/network";
 import { getPublicClient } from "../config/evm";
 import { devAccounts, getAccountsWithFallback, type AppAccount } from "../hooks/useAccount";
 import { getClient } from "../hooks/useChain";
@@ -80,8 +80,9 @@ export default function GovernanceDashboard() {
 	const ethRpcUrl = useChainStore((s) => s.ethRpcUrl);
 	const wsUrl = useChainStore((s) => s.wsUrl);
 
-	const ms = deployments.multisig;
-	const authorityAddr = deployments.medicAuthority as `0x${string}` | null;
+	const deployment = getDeploymentForRpc(ethRpcUrl);
+	const ms = deployment.multisig;
+	const authorityAddr = deployment.medicAuthority as `0x${string}` | null;
 
 	// All wallet accounts
 	const [accounts, setAccounts] = useState<AppAccount[]>(devAccounts);

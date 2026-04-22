@@ -1,15 +1,15 @@
 import { useCallback } from "react";
 import { type Address } from "viem";
 import { medicAuthorityAbi, getPublicClient } from "../config/evm";
-import { deployments } from "../config/deployments";
+import { getDeploymentForRpc } from "../config/network";
 import { useChainStore } from "../store/chainStore";
 
 export function useMedicAuthority() {
 	const ethRpcUrl = useChainStore((s) => s.ethRpcUrl);
+	const addr = getDeploymentForRpc(ethRpcUrl).medicAuthority;
 
 	const isVerifiedMedic = useCallback(
 		async (address: `0x${string}`): Promise<boolean | null> => {
-			const addr = deployments.medicAuthority;
 			if (!addr) return null; // pre-deployment: graceful no-op
 			try {
 				const client = getPublicClient(ethRpcUrl);
@@ -24,8 +24,8 @@ export function useMedicAuthority() {
 				return null;
 			}
 		},
-		[ethRpcUrl],
+		[ethRpcUrl, addr],
 	);
 
-	return { isVerifiedMedic, available: deployments.medicAuthority !== null };
+	return { isVerifiedMedic, available: addr !== null };
 }

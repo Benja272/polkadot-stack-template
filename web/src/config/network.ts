@@ -1,3 +1,5 @@
+import { deployments, type NetworkDeployment } from "./deployments";
+
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "192.168.50.65"]);
 
 export const LOCAL_WS_URL = import.meta.env.VITE_LOCAL_WS_URL || "ws://localhost:9944";
@@ -68,4 +70,13 @@ export function explorerTxUrl(txHash: string, ethRpcUrl: string): string | null 
 	const url = ethRpcUrl.toLowerCase();
 	if (url.includes("localhost") || url.includes("127.0.0.1")) return null;
 	return `https://blockscout-asset-hub.parity-testnet.parity.io/tx/${txHash}`;
+}
+
+export function isLocalEthRpc(ethRpcUrl: string): boolean {
+	const url = ethRpcUrl.toLowerCase();
+	return url.includes("localhost") || url.includes("127.0.0.1");
+}
+
+export function getDeploymentForRpc(ethRpcUrl: string): NetworkDeployment {
+	return deployments[isLocalEthRpc(ethRpcUrl) ? "local" : "paseo"];
 }

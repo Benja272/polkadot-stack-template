@@ -34,7 +34,7 @@ import {
 import { u8aToHex } from "@polkadot/util";
 import { createPublicClient, http, keccak256, encodeFunctionData } from "viem";
 import { stack_template } from "@polkadot-api/descriptors";
-import { readDeployments } from "./_deployments";
+import { readDeployments, inferNetworkFromRpc } from "./_deployments";
 import { submitExtrinsic } from "./_papi";
 
 const WS_URL = process.env.SUBSTRATE_RPC_WS ?? "ws://127.0.0.1:9944";
@@ -181,7 +181,7 @@ async function dispatchViaAsMulti(
 
 async function main() {
 	await cryptoWaitReady();
-	const deployments = readDeployments();
+	const deployments = readDeployments(inferNetworkFromRpc(WS_URL));
 	if (!deployments.multisig)
 		throw new Error("deployments.json missing 'multisig' — run set-deployments first");
 	if (!deployments.medicAuthority)

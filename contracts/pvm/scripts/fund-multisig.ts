@@ -9,7 +9,7 @@ import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
 import { getPolkadotSigner } from "polkadot-api/signer";
 import { cryptoWaitReady } from "@polkadot/util-crypto";
 import { Keyring } from "@polkadot/keyring";
-import { readDeployments } from "./_deployments";
+import { readDeployments, inferNetworkFromRpc } from "./_deployments";
 import { submitExtrinsic } from "./_papi";
 
 const WS_URL = process.env.SUBSTRATE_RPC_WS ?? "ws://127.0.0.1:10044";
@@ -18,7 +18,7 @@ const AMOUNT_PLANCK = 10_000_000_000_000n; // 10 UNIT (assuming 12 decimals)
 
 async function main() {
 	await cryptoWaitReady();
-	const deployments = readDeployments();
+	const deployments = readDeployments(inferNetworkFromRpc(WS_URL));
 	if (!deployments.multisig) throw new Error("run set-deployments.ts first");
 
 	const multisigSs58 = deployments.multisig.ss58;

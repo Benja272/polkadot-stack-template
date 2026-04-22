@@ -23,13 +23,17 @@ async function deployContract(
 }
 
 async function main() {
-	const deployments = readDeployments();
+	const isTestnet = hre.network.name === "polkadotTestnet";
+	const network = isTestnet ? "paseo" : "local";
+
+	const deployments = readDeployments(network);
 	if (!deployments.multisig) {
-		throw new Error("Run set-deployments.ts first to populate deployments.json.multisig");
+		throw new Error(
+			`Run set-deployments.ts first to populate deployments.json[${network}].multisig`,
+		);
 	}
 	const { h160: multisigH160 } = deployments.multisig;
 
-	const isTestnet = hre.network.name === "polkadotTestnet";
 	const chainOption = isTestnet ? { chain: polkadotHubTestnet } : {};
 
 	const [walletClient] = await hre.viem.getWalletClients(chainOption);
@@ -41,7 +45,7 @@ async function main() {
 	]);
 	console.log(`MedicAuthority deployed to: ${marketAddress}`);
 
-	updateDeployments({ medicAuthority: marketAddress });
+	updateDeployments(network, { medicAuthority: marketAddress });
 	console.log("Updated deployments.json and web/src/config/deployments.ts");
 }
 
