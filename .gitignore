@@ -55,6 +55,16 @@ contracts/*/ignition/deployments/
 .gemini/
 .envrc
 
+# Local artifacts / binaries
+/kubo/
+/kubo_*.tar.gz
+/notes
+/retrospective-template.md
+/package.json
+/package-lock.json
+/contracts/evm/
+/docs/pitch/
+
 # Symlinked product skills (machine-local references to ../product-skills)
 skills/bulletin-sdk
 skills/bulletin-storage
