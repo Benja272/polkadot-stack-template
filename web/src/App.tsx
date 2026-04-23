@@ -47,19 +47,19 @@ export default function App() {
 			{/* Ambient gradient orbs */}
 			<div
 				className="gradient-orb"
-				style={{ background: "#e6007a", top: "-150px", right: "-150px", opacity: 0.09 }}
+				style={{ background: "#e6007a", top: "-150px", right: "-150px", opacity: 0.06 }}
 			/>
 			<div
 				className="gradient-orb"
-				style={{ background: "#06b6d4", bottom: "-200px", left: "-200px", opacity: 0.1 }}
+				style={{ background: "#0d9488", bottom: "-200px", left: "-200px", opacity: 0.12 }}
 			/>
 			<div
 				className="gradient-orb"
 				style={{
-					background: "#0369a1",
+					background: "#d97706",
 					top: "40%",
 					left: "30%",
-					opacity: 0.06,
+					opacity: 0.04,
 					width: "900px",
 					height: "900px",
 				}}
@@ -119,7 +119,7 @@ export default function App() {
 							</span>
 							<span
 								className="font-medium tracking-widest uppercase"
-								style={{ fontSize: "0.6rem", color: "#06b6d4" }}
+								style={{ fontSize: "0.6rem", color: "#0d9488" }}
 							>
 								Patient-Owned
 							</span>
@@ -134,12 +134,12 @@ export default function App() {
 									to={item.path}
 									className={`relative px-3 py-1.5 text-sm font-medium transition-all duration-200 whitespace-nowrap ${
 										location.pathname === item.path
-											? "text-polka-400"
+											? "text-med-500"
 											: "text-text-secondary hover:text-text-primary"
 									}`}
 								>
 									{location.pathname === item.path && (
-										<span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-polka-500" />
+										<span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-med-600" />
 									)}
 									<span className="relative">{item.label}</span>
 								</Link>

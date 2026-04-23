@@ -757,6 +757,52 @@ anyone adding postinstall patches.
 
 ---
 
+---
+
+## Bulletin Chain / DotNS deployment
+
+### Page goes black if the bundle is too large
+
+When the total JS weight of the deployed frontend exceeds a certain threshold, the page loads
+but renders a black screen — no error, no console output that points to the cause.
+
+Root cause: the Bulletin Chain upload chunking breaks down with large asset files. The browser
+fetches the HTML but one or more JS chunks either fail to load silently or arrive corrupted,
+leaving React unable to mount.
+
+**Observed threshold**: a production build with a gzip-compressed ZK bundle of ~443 kB
+triggered this. Smaller builds deployed cleanly.
+
+**The culprit**: `@zk-kit/baby-jubjub` + `@zk-kit/eddsa-poseidon` + `poseidon-lite` land in
+a single Vite chunk at **643 kB raw / 443 kB gzip** — 65% of total JS weight. They are
+imported statically in `ResearcherBuy.tsx` and `MedicSign.tsx`.
+
+**Mitigations (pick one)**:
+
+1. **Lazy-load the ZK imports** — convert static imports to dynamic `import()` so Vite only
+   fetches the chunk when the user navigates to those pages. Reduces the critical-path bundle
+   the browser must load on first paint.
+
+2. **ECDSA migration** — replace BabyJubJub + Poseidon with secp256k1 + keccak256, both
+   built into `viem` (no extra deps). Eliminates the `@zk-kit` bundle entirely. The
+   `TODO(ecdsa-migration)` comments in `ResearcherBuy.tsx`, `MedicSign.tsx`,
+   `PatientDashboard.tsx`, and `DoctorInbox.tsx` track the full migration surface.
+
+3. **Temporary**: exclude the heaviest pages from the build for the deployed frontend (e.g.
+   serve a static landing page on `.dot.li` and run the full app locally for demo).
+
+**Key bundle sizes as of 2026-04-23** (run `npm run build` in `web/` to recheck):
+
+| Chunk | Raw | Gzip |
+|---|---|---|
+| ZK (`@zk-kit/*` + `poseidon-lite`) | 643 kB | 443 kB |
+| viem | 263 kB | 80 kB |
+| PAPI vendor | 266 kB | 94 kB |
+| PAPI chain metadata | 257 kB | 88 kB |
+| React | 179 kB | 59 kB |
+
+---
+
 ## Open questions / things we noticed but didn't chase
 
 - **How to estimate pallet-multisig `max_weight` deterministically**: we tuned by hand. A

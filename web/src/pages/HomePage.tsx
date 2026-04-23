@@ -21,7 +21,7 @@ export default function HomePage() {
 					directly to researchers. Encrypted to the buyer, settled on Polkadot.
 				</p>
 				<div className="flex gap-3 pt-1">
-					<Link to="/researcher" className="btn-primary">
+					<Link to="/researcher" className="btn-med">
 						Browse listings
 					</Link>
 					<Link to="/patient" className="btn-secondary">

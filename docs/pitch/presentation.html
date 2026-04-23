@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Own Your Medical Records</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- Slide 1: Title -->
+      <section id="title" class="section-divider" data-state="is-section-divider">
+        <p class="text-uppercase text-muted" style="font-size:11pt; letter-spacing:0.15em; margin-bottom:16px;">PBP Lisbon 2026</p>
+        <h1>Own Your<br><span style="color:#E6007A;">Medical Records</span></h1>
+        <p style="margin-top:20px; font-size:18pt; color:#9CA3AF; max-width:640px;">Patients sell medic-signed health data to researchers.<br>Encrypted in the browser. Settled on Polkadot.</p>
+        <p style="position:absolute; bottom:32px; font-size:12pt; color:#4B5563;">own-your-medical-records42.dot.li</p>
+      </section>
+
+      <!-- Slide 2: Problem -->
+      <section id="problem">
+        <h2>The Problem</h2>
+        <div class="content">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px;">
+            <div>
+              <p class="text-muted text-uppercase" style="font-size:10pt; letter-spacing:0.1em; margin-bottom:12px;">Data is held hostage</p>
+              <div class="pk-card" style="margin-bottom:12px;">
+                <p><strong>Anthem 2015.</strong> 78 million records exposed from one breach.</p>
+              </div>
+              <div class="pk-card" style="margin-bottom:12px;">
+                <p><strong>Change Healthcare 2024.</strong> A third of Americans' records disrupted.</p>
+              </div>
+              <div class="pk-card">
+                <p>Your data gets licensed and sold by institutions. <strong>You see none of the money.</strong></p>
+              </div>
+            </div>
+            <div>
+              <p class="text-muted text-uppercase" style="font-size:10pt; letter-spacing:0.1em; margin-bottom:12px;">The gap AI makes urgent</p>
+              <p>Medical copilots, diagnostic assistants, and autonomous clinical agents all <strong>train on health data</strong>.</p>
+              <p style="margin-top:14px;">That data is scraped, licensed by institutions, or assembled through opaque partnerships. The patient is <strong>never in the loop</strong> and <strong>never compensated</strong>.</p>
+              <p style="margin-top:14px; color:#E6007A; font-weight:500;">No system exists today where a patient owns their records, shares them in a verified and private way, and gets paid — without trusting a centralized entity.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 3: Solution — circle flow diagram -->
+      <section id="solution">
+        <h2>The Solution</h2>
+        <div class="content">
+          <!-- Circle flow -->
+          <div style="display:flex; align-items:flex-start; justify-content:center; gap:0; margin:8px 0 20px;">
+
+            <div class="flow-step">
+              <div class="flow-circle"><i class="fa-solid fa-pen-nib"></i></div>
+              <p class="flow-label">Sign</p>
+              <p class="flow-sublabel">Medic hashes &amp; EdDSA-signs the record</p>
+            </div>
+            <div class="flow-chevron"><i class="fa-solid fa-chevron-right"></i></div>
+
+            <div class="flow-step">
+              <div class="flow-circle"><i class="fa-solid fa-arrow-up-from-bracket"></i></div>
+              <p class="flow-label">Publish</p>
+              <p class="flow-sublabel">Patient lists commitment on Asset Hub</p>
+            </div>
+            <div class="flow-chevron"><i class="fa-solid fa-chevron-right"></i></div>
+
+            <div class="flow-step">
+              <div class="flow-circle"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+              <p class="flow-label">Pay</p>
+              <p class="flow-sublabel">Researcher locks PAS in escrow</p>
+            </div>
+            <div class="flow-chevron"><i class="fa-solid fa-chevron-right"></i></div>
+
+            <div class="flow-step">
+              <div class="flow-circle"><i class="fa-solid fa-lock"></i></div>
+              <p class="flow-label">Encrypt</p>
+              <p class="flow-sublabel">Patient ECDH-encrypts &amp; fulfills — escrow released</p>
+            </div>
+            <div class="flow-chevron"><i class="fa-solid fa-chevron-right"></i></div>
+
+            <div class="flow-step">
+              <div class="flow-circle"><i class="fa-solid fa-key"></i></div>
+              <p class="flow-label">Decrypt</p>
+              <p class="flow-sublabel">Researcher decrypts &amp; verifies commitment + sig</p>
+            </div>
+
+          </div>
+
+          <!-- Properties + Stack row -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+            <div>
+              <p class="text-muted text-uppercase" style="font-size:10pt; letter-spacing:0.1em; margin-bottom:10px;">Why it matters</p>
+              <ul style="margin:0;">
+                <li><p style="margin:0; font-size:14pt;"><strong>Patients earn from data they already own</strong> — for the first time</p></li>
+                <li style="margin-top:8px;"><p style="margin:0; font-size:14pt;"><strong>Researchers get verified records</strong> — medic-attested, not scraped or synthesized</p></li>
+                <li style="margin-top:8px;"><p style="margin:0; font-size:14pt;"><strong>No institution in the middle</strong> — no hospital, broker, or platform takes a cut</p></li>
+              </ul>
+            </div>
+            <div>
+              <p class="text-muted text-uppercase" style="font-size:10pt; letter-spacing:0.1em; margin-bottom:10px;">Stack</p>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="pk-card">
+                  <p style="font-size:13pt; font-weight:600; margin-bottom:4px;">Solidity on pallet-revive</p>
+                  <p style="font-size:12pt; color:#9CA3AF; margin:0;">Asset Hub — escrow contract</p>
+                </div>
+                <div class="pk-card">
+                  <p style="font-size:13pt; font-weight:600; margin-bottom:4px;">Statement Store</p>
+                  <p style="font-size:12pt; color:#9CA3AF; margin:0;">Native ephemeral ciphertext storage</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 4: Technical Flow — who does what -->
+      <section id="flow-detail">
+        <h2>Who Does What</h2>
+        <div class="content">
+          <!-- Three actor columns -->
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:16px;">
+
+            <div>
+              <div class="actor-header" style="border-color:#8B5CF6; color:#A78BFA;">
+                <i class="fa-solid fa-user-doctor"></i>&nbsp; Medic
+              </div>
+              <div class="actor-row"><i class="fa-solid fa-hashtag actor-icon" style="color:#8B5CF6;"></i><p>Poseidon-hash record into 3 compartments (header / body / PII)</p></div>
+              <div class="actor-row"><i class="fa-solid fa-signature actor-icon" style="color:#8B5CF6;"></i><p>EdDSA-sign the combined commitment over BabyJubJub</p></div>
+              <div class="actor-row"><i class="fa-solid fa-arrow-right actor-icon" style="color:#8B5CF6;"></i><p>Hand commitment + sig to patient (off-chain)</p></div>
+            </div>
+
+            <div>
+              <div class="actor-header" style="border-color:#E6007A; color:#F472B6;">
+                <i class="fa-solid fa-user"></i>&nbsp; Patient
+              </div>
+              <div class="actor-row"><i class="fa-solid fa-upload actor-icon" style="color:#E6007A;"></i><p>List commitment + medic sig on Asset Hub, set price</p></div>
+              <div class="actor-row"><i class="fa-solid fa-lock actor-icon" style="color:#E6007A;"></i><p>ECDH encrypt plaintext for buyer's pubkey (Poseidon stream cipher)</p></div>
+              <div class="actor-row"><i class="fa-solid fa-cloud-arrow-up actor-icon" style="color:#E6007A;"></i><p>Upload ciphertext to Statement Store (People Chain)</p></div>
+              <div class="actor-row"><i class="fa-solid fa-circle-check actor-icon" style="color:#E6007A;"></i><p>Call <code style="background:#1F2937;padding:1px 5px;border-radius:3px;font-size:11pt;">fulfill()</code> — escrow releases, ciphertext hash on-chain</p></div>
+            </div>
+
+            <div>
+              <div class="actor-header" style="border-color:#06B6D4; color:#67E8F9;">
+                <i class="fa-solid fa-microscope"></i>&nbsp; Researcher
+              </div>
+              <div class="actor-row"><i class="fa-solid fa-hand-holding-dollar actor-icon" style="color:#06B6D4;"></i><p>Place buy order — lock PAS in escrow, register ECDH pubkey</p></div>
+              <div class="actor-row"><i class="fa-solid fa-cloud-arrow-down actor-icon" style="color:#06B6D4;"></i><p>Fetch ciphertext from Statement Store after fulfill</p></div>
+              <div class="actor-row"><i class="fa-solid fa-key actor-icon" style="color:#06B6D4;"></i><p>Decrypt with private key + ephemeral pubkey via ECDH</p></div>
+              <div class="actor-row"><i class="fa-solid fa-shield-check actor-icon" style="color:#06B6D4;"></i><p>Verify: Poseidon hash ✓ &nbsp; medic EdDSA sig ✓</p></div>
+            </div>
+
+          </div>
+
+          <!-- Infrastructure row -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div style="background:#0D131F; border:1px solid #E6007A44; border-radius:8px; padding:12px 16px; display:flex; gap:12px; align-items:center;">
+              <i class="fa-solid fa-link" style="font-size:20pt; color:#E6007A; flex-shrink:0;"></i>
+              <div>
+                <p style="font-weight:600; margin:0; font-size:13pt;">Asset Hub — MedicalMarket.sol</p>
+                <p style="color:#9CA3AF; margin:0; font-size:12pt;">commitment store · PAS escrow · fulfill signal · ciphertext hash</p>
+              </div>
+            </div>
+            <div style="background:#0D131F; border:1px solid #8B5CF644; border-radius:8px; padding:12px 16px; display:flex; gap:12px; align-items:center;">
+              <i class="fa-solid fa-database" style="font-size:20pt; color:#8B5CF6; flex-shrink:0;"></i>
+              <div>
+                <p style="font-weight:600; margin:0; font-size:13pt;">People Chain — Statement Store</p>
+                <p style="color:#9CA3AF; margin:0; font-size:12pt;">ephemeral signed storage · ciphertext ~1 KB · no IPFS</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 5: Why Polkadot -->
+      <section id="why-polkadot">
+        <h2>Why Polkadot</h2>
+        <div class="content">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:8px;">
+            <div class="pk-card">
+              <p style="color:#E6007A; font-size:13pt; font-weight:600; margin-bottom:8px;"><i class="fa-solid fa-file-contract" style="margin-right:8px;"></i>Asset Hub + pallet-revive</p>
+              <p style="font-size:14pt;">Solidity we already know, deployed on a chain with <strong>native token settlement</strong> and shared security.</p>
+            </div>
+            <div class="pk-card">
+              <p style="color:#E6007A; font-size:13pt; font-weight:600; margin-bottom:8px;"><i class="fa-solid fa-database" style="margin-right:8px;"></i>Statement Store</p>
+              <p style="font-size:14pt;"><strong>Native ephemeral storage</strong> for the encrypted ciphertext. No IPFS daemon, no pinning service, no external infra to run.</p>
+            </div>
+            <div class="pk-card">
+              <p style="color:#E6007A; font-size:13pt; font-weight:600; margin-bottom:8px;"><i class="fa-solid fa-id-badge" style="margin-right:8px;"></i>People Chain</p>
+              <p style="font-size:14pt;">A real on-chain <strong>identity layer for physician credentialing</strong> via KnownGood judgements. We don't build that ourselves.</p>
+            </div>
+            <div class="pk-card">
+              <p style="color:#E6007A; font-size:13pt; font-weight:600; margin-bottom:8px;"><i class="fa-solid fa-globe" style="margin-right:8px;"></i>Bulletin Chain + DotNS</p>
+              <p style="font-size:14pt;">Frontend hosted on-chain, reachable via <strong>own-your-medical-records42.dot.li</strong>. No AWS, no Vercel, no DNS registrar.</p>
+            </div>
+          </div>
+          <p style="margin-top:18px; color:#E6007A; font-size:14pt; font-weight:500;">These aren't ports from another ecosystem. They're primitives this stack has together, and no other stack does.</p>
+        </div>
+      </section>
+
+      <!-- Slide 6: Demo -->
+      <section id="demo" style="padding-bottom:20px !important;">
+        <h2>Live Demo</h2>
+        <div class="content" style="gap:16px;">
+          <div class="demo-stage">
+            <p>↑ live screen share ↑</p>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:4px;">
+            <div style="background:#1F2937; border-radius:6px; padding:12px 14px; border-top:2px solid #E6007A;">
+              <p style="font-size:11pt; color:#E6007A; font-weight:600; margin-bottom:4px;">1. List</p>
+              <p style="font-size:11pt; color:#9CA3AF; margin:0;">PatientDashboard — listing card, commitment hash, price visible. Plaintext: hidden.</p>
+            </div>
+            <div style="background:#1F2937; border-radius:6px; padding:12px 14px; border-top:2px solid #E6007A;">
+              <p style="font-size:11pt; color:#E6007A; font-weight:600; margin-bottom:4px;">2. Buy</p>
+              <p style="font-size:11pt; color:#9CA3AF; margin:0;">ResearcherBuy — place order, lock 10 PAS. Tx confirmed.</p>
+            </div>
+            <div style="background:#1F2937; border-radius:6px; padding:12px 14px; border-top:2px solid #E6007A;">
+              <p style="font-size:11pt; color:#E6007A; font-weight:600; margin-bottom:4px;">3. Fulfill</p>
+              <p style="font-size:11pt; color:#9CA3AF; margin:0;">PatientDashboard — Fulfill button active. Escrow released, ciphertext hash on-chain.</p>
+            </div>
+            <div style="background:#1F2937; border-radius:6px; padding:12px 14px; border-top:2px solid #E6007A;">
+              <p style="font-size:11pt; color:#E6007A; font-weight:600; margin-bottom:4px;">4. Decrypt</p>
+              <p style="font-size:11pt; color:#9CA3AF; margin:0;">Body hash ✓ &nbsp;Header hash ✓ &nbsp;Medic sig ✓ — plaintext revealed.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 7: Honest Flaws -->
+      <section id="flaws">
+        <h2>Honest Flaws</h2>
+        <div class="content">
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <div class="flaw-item">
+              <div class="flaw-dot"></div>
+              <p><strong>We built the full ZK stack</strong> — a 12.8k-constraint Groth16 circuit, browser proof generation at ~1.1s, verifier contract. But BN254 pairing on PVM hits ~800M gas weight on Paseo. Verification is currently off-chain. Circuit and zkey are in the repo. <span style="color:#9CA3AF;">→ open engineering question we're still investigating.</span></p>
+            </div>
+            <div class="flaw-item">
+              <div class="flaw-dot"></div>
+              <p><strong>Relaxed atomicity</strong> — because verification is off-chain, the patient could send garbage ciphertext and keep the money. A buyer dispute window is next. <span style="color:#9CA3AF;">Not shipped yet.</span></p>
+            </div>
+            <div class="flaw-item">
+              <div class="flaw-dot"></div>
+              <p><strong>No on-chain physician identity</strong> — medic registry is a multisig-owned contract today. People Chain KnownGood integration is on the roadmap.</p>
+            </div>
+            <div class="flaw-item">
+              <div class="flaw-dot"></div>
+              <p><strong>Statement Store asymmetry</strong> — <code style="background:#1F2937; padding:2px 6px; border-radius:4px; font-size:13pt;">statement_submit</code> is only available on the People Chain collator on Paseo, not Asset Hub. The hook auto-resolves it — but it's a testnet gap worth filing.</p>
+            </div>
+            <div class="flaw-item">
+              <div class="flaw-dot"></div>
+              <p><strong>Synthetic data only</strong> — no real patients, no legal review. MVP test records only.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 8: What's Next -->
+      <section id="next">
+        <h2>What's Next</h2>
+        <div class="content">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:24px;">
+            <div class="pk-card">
+              <p style="color:#E6007A; font-weight:600; margin-bottom:6px;">Close the griefing gap</p>
+              <p style="font-size:14pt;">Buyer dispute window — if the decrypted content doesn't match the commitment, the buyer reclaims their payment.</p>
+            </div>
+            <div class="pk-card">
+              <p style="color:#E6007A; font-weight:600; margin-bottom:6px;">On-chain physician identity</p>
+              <p style="font-size:14pt;">Wire People Chain KnownGood judgements so buyers can trust the medic key without an off-chain check.</p>
+            </div>
+            <div class="pk-card">
+              <p style="color:#E6007A; font-weight:600; margin-bottom:6px;">Pilot with real data</p>
+              <p style="font-size:14pt;">Partner with a research group to run a pilot on real, consented records. Legal review required first.</p>
+            </div>
+            <div class="pk-card">
+              <p style="color:#E6007A; font-weight:600; margin-bottom:6px;">Open to AI buyers</p>
+              <p style="font-size:14pt;">Medical-AI teams as first-class buyers — same privacy and compensation flow, programmatic access.</p>
+            </div>
+          </div>
+          <div style="border-top:1px solid #374151; padding-top:16px;">
+            <p style="font-size:13pt; color:#4B5563; margin:0; text-align:center;">own-your-medical-records42.dot.li</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 9: Questions -->
+      <section id="questions" class="section-divider" data-state="is-section-divider">
+        <h1 style="font-size:64pt;">Questions?</h1>
+        <p style="margin-top:24px; font-size:16pt; color:#9CA3AF;">own-your-medical-records42.dot.li</p>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js-plugins@latest/chart/plugin.js"></script>
+  <script>
+    Reveal.initialize({
+      width: 1280,
+      height: 720,
+      margin: 0,
+      controls: true,
+      progress: true,
+      slideNumber: false,
+      hash: true,
+      transition: 'slide',
+      center: false,
+      plugins: [ RevealChart ],
+      chart: {
+        defaults: Object.assign({
+          color: 'rgba(0, 0, 0, 0.8)',
+          borderColor: 'rgba(0, 0, 0, 0.8)',
+          devicePixelRatio: 2
+        }, window.location.search.includes('export') ? { animation: false } : {})
+      }
+    });
+  </script>
+</body>
+</html>
