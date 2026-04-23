@@ -75,6 +75,8 @@ Compiles contracts, derives the multisig address from `Council1.json` / `Council
 
 **Ephemeral ciphertext storage**: encrypted records are stored in the Statement Store, which is ephemeral. Long-term the ciphertext should move to Bulletin Chain so patients can keep their records available without staying online — but Bulletin Chain's large-asset upload path hit size limits in testing (see Design Compromises).
 
+**No sustainability model**: no fees or revenue share implemented. The market is free to use for now. Future iterations could explore a fee on sales.
+
 ---
 
 ## Design Compromises
