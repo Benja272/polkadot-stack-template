@@ -286,7 +286,7 @@ parameter_types! {
 	pub const StatementCost: Balance = 10 * EXISTENTIAL_DEPOSIT;
 	pub const StatementByteCost: Balance = EXISTENTIAL_DEPOSIT / 1024;
 	pub const MinAllowedStatements: u32 = 1;
-	pub const MaxAllowedStatements: u32 = 16;
+	pub const MaxAllowedStatements: u32 = 1024;
 	pub const MinAllowedBytes: u32 = 1024 * 1024;
 	pub const MaxAllowedBytes: u32 = 16 * 1024 * 1024;
 }

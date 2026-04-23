@@ -32,6 +32,8 @@ export const medicalMarketAbi = [
 			{ name: "headerCommit", type: "uint256" },
 			{ name: "bodyCommit", type: "uint256" },
 			{ name: "piiCommit", type: "uint256" },
+			// TODO(ecdsa-migration): swap these 5 BJJ fields for { name: "medicAddress", type: "address" }
+			// and { name: "medicSignature", type: "bytes" } (65-byte ECDSA sig)
 			{ name: "medicPkX", type: "uint256" },
 			{ name: "medicPkY", type: "uint256" },
 			{ name: "sigR8x", type: "uint256" },
@@ -98,6 +100,7 @@ export const medicalMarketAbi = [
 			{ name: "headerCommit", type: "uint256" },
 			{ name: "bodyCommit", type: "uint256" },
 			{ name: "piiCommit", type: "uint256" },
+			// TODO(ecdsa-migration): swap these 5 BJJ output fields for medicAddress: "address" + medicSignature: "bytes"
 			{ name: "medicPkX", type: "uint256" },
 			{ name: "medicPkY", type: "uint256" },
 			{ name: "sigR8x", type: "uint256" },
@@ -166,6 +169,7 @@ export const medicalMarketAbi = [
 			{ name: "headerCommit", type: "uint256", indexed: false },
 			{ name: "bodyCommit", type: "uint256", indexed: false },
 			{ name: "piiCommit", type: "uint256", indexed: false },
+			// TODO(ecdsa-migration): replace medicPkX/Y with { name: "medicAddress", type: "address", indexed: false }
 			{ name: "medicPkX", type: "uint256", indexed: false },
 			{ name: "medicPkY", type: "uint256", indexed: false },
 			{ name: "title", type: "string", indexed: false },
@@ -235,6 +239,8 @@ export const medicalMarketAbi = [
 			{ name: "headerCommit", type: "uint256" },
 			{ name: "bodyCommit", type: "uint256" },
 			{ name: "piiCommit", type: "uint256" },
+			// TODO(ecdsa-migration): swap BJJ fields for { name: "medicAddress", type: "address" } + { name: "medicSignature", type: "bytes" }
+			// Also swap doctorPkX/Y for { name: "doctorAddress", type: "address" }
 			{ name: "medicPkX", type: "uint256" },
 			{ name: "medicPkY", type: "uint256" },
 			{ name: "sigR8x", type: "uint256" },
@@ -259,6 +265,8 @@ export const medicalMarketAbi = [
 			{ name: "headerCommit", type: "uint256", indexed: false },
 			{ name: "bodyCommit", type: "uint256", indexed: false },
 			{ name: "piiCommit", type: "uint256", indexed: false },
+			// TODO(ecdsa-migration): replace 5 BJJ fields with { name: "medicAddress", type: "address", indexed: false }
+			// + { name: "medicSignature", type: "bytes", indexed: false }. Saves ~5 uint256 log slots.
 			{ name: "medicPkX", type: "uint256", indexed: false },
 			{ name: "medicPkY", type: "uint256", indexed: false },
 			{ name: "sigR8x", type: "uint256", indexed: false },

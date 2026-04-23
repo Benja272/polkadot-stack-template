@@ -16,9 +16,11 @@ import {
 	encodeRecordToFieldElements,
 	type MedicalHeader,
 } from "../utils/zk";
+// TODO(ecdsa-migration): replace @zk-kit/eddsa-poseidon with viem's recoverAddress.
 import { verifySignature } from "@zk-kit/eddsa-poseidon";
 import { blake2b } from "blakejs";
 
+// TODO(ecdsa-migration): replace medicPkX/Y + sigR8x/y/S with medicAddress: Address + medicSignature: `0x${string}`
 interface Listing {
 	id: bigint;
 	header: MedicalHeader;
@@ -76,6 +78,9 @@ function formatRecordedAt(unixSeconds: number): string {
 	});
 }
 
+// TODO(ecdsa-migration): replace signature params with (medicAddress: Address, medicSignature: `0x${string}`).
+// Use viem's recoverAddress({ hash: keccak256(recordCommit), signature: medicSignature }) and compare to medicAddress.
+// recordCommit can stay Poseidon3 for now (it's just bytes to sign), or migrate to keccak256 to drop poseidon-lite.
 function verifyListingOffChain(
 	header: MedicalHeader,
 	headerCommit: bigint,

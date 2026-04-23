@@ -44,6 +44,7 @@ export default function WalletSelector() {
 	const [open, setOpen] = useState(false);
 	const [availableExtensions, setAvailableExtensions] = useState<string[]>([]);
 	const [connecting, setConnecting] = useState<string | null>(null);
+	const [connectError, setConnectError] = useState<string | null>(null);
 	const extUnsubRef = useRef<(() => void) | null>(null);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -63,15 +64,32 @@ export default function WalletSelector() {
 		return () => document.removeEventListener("mousedown", handleMouseDown);
 	}, [open]);
 
+	// Poll for extensions until at least one injects — on deployed CDN sites,
+	// extensions write to window.injectedWeb3 after the first render.
 	useEffect(() => {
-		if (!open) return;
-		try {
-			const exts = getInjectedExtensions().filter((n) => n !== SpektrExtensionName);
-			setAvailableExtensions(exts);
-		} catch {
-			setAvailableExtensions([]);
+		function scanExtensions(): boolean {
+			try {
+				let exts = getInjectedExtensions();
+				// Fallback for SES/LavaMoat (MetaMask lockdown) which can freeze globalThis
+				// before extensions inject — read window.injectedWeb3 directly instead.
+				if (exts.length === 0) {
+					const w = (window as unknown as Record<string, unknown>).injectedWeb3;
+					if (w && typeof w === "object") exts = Object.keys(w);
+				}
+				exts = exts.filter((n) => n !== SpektrExtensionName);
+				setAvailableExtensions(exts);
+				return exts.length > 0;
+			} catch {
+				return false;
+			}
 		}
-	}, [open]);
+		if (!scanExtensions()) {
+			const timer = setInterval(() => {
+				if (scanExtensions()) clearInterval(timer);
+			}, 500);
+			return () => clearInterval(timer);
+		}
+	}, []);
 
 	const buildAccountList = useCallback((extensionAccounts: AppAccount[]): AppAccount[] => {
 		const base = isLocalHost() ? devAccounts : [];
@@ -81,17 +99,31 @@ export default function WalletSelector() {
 	const connectExtension = useCallback(
 		async (name: string) => {
 			setConnecting(name);
+			setConnectError(null);
 			try {
 				let ext = null;
+				// Each attempt races against an 8-second timeout. If the MV3 extension
+				// background worker is sleeping, .enable() hangs silently — aborting and
+				// retrying wakes the worker and triggers the permission popup.
 				for (let i = 0; i < 5; i++) {
 					try {
-						ext = await connectInjectedExtension(name);
+						ext = await Promise.race([
+							connectInjectedExtension(name),
+							new Promise<never>((_, rej) =>
+								setTimeout(() => rej(new Error("timeout")), 8000),
+							),
+						]);
 						break;
 					} catch {
 						if (i < 4) await new Promise((r) => setTimeout(r, 800));
 					}
 				}
-				if (!ext) throw new Error(`Could not connect to ${name}`);
+				if (!ext) {
+					setConnectError(
+						`Could not connect to ${name}. Click the ${name} icon in your toolbar to wake it, then try again.`,
+					);
+					return;
+				}
 
 				extUnsubRef.current?.();
 
@@ -108,6 +140,9 @@ export default function WalletSelector() {
 				});
 			} catch (e) {
 				console.error("[WalletSelector] connect failed:", e);
+				setConnectError(
+					`Could not connect to ${name}. Check that the extension is installed and unlocked.`,
+				);
 			} finally {
 				setConnecting(null);
 			}
@@ -119,7 +154,7 @@ export default function WalletSelector() {
 		extUnsubRef.current?.();
 		extUnsubRef.current = null;
 		setConnectedWallet(null);
-		setAccounts(devAccounts);
+		setAccounts(isLocalHost() ? devAccounts : []);
 		setSelectedIdx(0);
 		setOpen(false);
 	}, [setAccounts, setConnectedWallet, setSelectedIdx]);
@@ -252,6 +287,12 @@ export default function WalletSelector() {
 								</button>
 							))}
 						</>
+					)}
+
+					{connectError && (
+						<p className="px-3.5 py-2 text-xs text-accent-red leading-snug">
+							{connectError}
+						</p>
 					)}
 
 					{devSection.length === 0 &&

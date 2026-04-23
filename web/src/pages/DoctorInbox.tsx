@@ -14,6 +14,7 @@ import {
 	encodeRecordToFieldElements,
 	type MedicalHeader,
 } from "../utils/zk";
+// TODO(ecdsa-migration): replace @zk-kit/eddsa-poseidon with viem's recoverAddress.
 import { verifySignature } from "@zk-kit/eddsa-poseidon";
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,9 @@ function truncateHex(hex: string): string {
 	return `${hex.slice(0, 6)}...${hex.slice(-4)}`;
 }
 
+// TODO(ecdsa-migration): replace (medicPk, sig) with (medicAddress: Address, medicSignature: `0x${string}`).
+// Use viem recoverAddress over keccak256(recordCommit). Also update RecordShared event to emit medicAddress
+// instead of medicPkX/Y/sigR8x/y/S — shrinks log size significantly.
 function verifyShareOffChain(
 	header: MedicalHeader,
 	headerCommit: bigint,
@@ -79,6 +83,8 @@ const recordSharedEvent = parseAbiItem(
 	"event RecordShared(address indexed patient, uint256 indexed doctorPkX, uint256 doctorPkY, uint256 headerCommit, uint256 bodyCommit, uint256 medicPkX, uint256 medicPkY, uint256 sigR8x, uint256 sigR8y, uint256 sigS, uint256 ephPkX, uint256 ephPkY, uint256 ciphertextHash, string title, string recordType, uint64 recordedAt, string facility)",
 );
 
+// TODO(ecdsa-migration): replace medicPkX/Y + sigR8x/y/S with medicAddress: Address + medicSignature: `0x${string}`.
+// Also replace doctorPkX/Y with doctorAddress: Address so inbox filtering uses address not BJJ point.
 interface IncomingShare {
 	patient: Address;
 	doctorPkX: bigint;
@@ -356,12 +362,13 @@ export default function DoctorInbox() {
 				return;
 			}
 
-			// Filter by doctorPkX only; the indexed topic1 narrows the server-side scan,
-			// then filter locally on doctorPkY (non-indexed) for the full pubkey match.
+			// Fetch all RecordShared events and filter client-side; the PVM eth-rpc
+			// adapter doesn't support null wildcards in the middle of a topics array
+			// (e.g. [eventSig, null, doctorPkX]), so server-side indexed filtering
+			// is skipped entirely.
 			const logs = await client.getLogs({
 				address: addr,
 				event: recordSharedEvent,
-				args: { doctorPkX: doctorKey.pk.x },
 				fromBlock: 0n,
 				toBlock: "latest",
 			});
@@ -370,7 +377,8 @@ export default function DoctorInbox() {
 			for (const l of logs) {
 				const args = l.args;
 				if (!args) continue;
-				if (args.doctorPkY !== doctorKey.pk.y) continue;
+				if (args.doctorPkX !== doctorKey.pk.x || args.doctorPkY !== doctorKey.pk.y)
+					continue;
 				if (
 					args.patient === undefined ||
 					args.doctorPkX === undefined ||

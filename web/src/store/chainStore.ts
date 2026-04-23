@@ -2,6 +2,11 @@ import { create } from "zustand";
 import { getStoredEthRpcUrl, getStoredWsUrl } from "../config/network";
 import { devAccounts, type AppAccount } from "../hooks/useAccount";
 
+function isLocalHost(): boolean {
+	if (typeof window === "undefined") return false;
+	return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+}
+
 export interface PalletAvailability {
 	revive: boolean | null;
 }
@@ -37,7 +42,7 @@ export const useChainStore = create<ChainState>((set) => ({
 	selectedAccount: 0,
 	txStatus: null,
 	pallets: { revive: null },
-	accounts: devAccounts,
+	accounts: isLocalHost() ? devAccounts : [],
 	selectedAccountIndex: 0,
 	connectedWallet: null,
 	setWsUrl: (wsUrl) => {

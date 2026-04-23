@@ -1,3 +1,7 @@
+// TODO(ecdsa-migration): poseidon-lite and @zk-kit/baby-jubjub are only needed for Poseidon-based
+// commitments and BJJ ECDH. recordCommit can switch to keccak256 (drop poseidon3 + poseidon-lite),
+// and the ECDH encryption layer can be replaced by ECIES over secp256k1. If those two change,
+// mulPointEscalar / Base8 / jubOrder go away and the bundle shrinks significantly.
 import { poseidon2, poseidon3, poseidon4, poseidon8, poseidon16 } from "poseidon-lite";
 import { mulPointEscalar, Base8, order as jubOrder } from "@zk-kit/baby-jubjub";
 
@@ -39,6 +43,10 @@ export interface SignedRecord {
 	bodyCommit: string;
 	piiCommit: string;
 	recordCommit: string; // Poseidon3(headerCommit, bodyCommit, piiCommit) — what the medic signs
+	// TODO(ecdsa-migration): replace signature + medicPublicKey with:
+	//   medicAddress: string;   // Ethereum H160
+	//   medicSignature: string; // 65-byte EIP-191 sig (hex)
+	// Drop @zk-kit/eddsa-poseidon import in MedicSign, ResearcherBuy, DoctorInbox.
 	signature: { R8x: string; R8y: string; S: string };
 	medicPublicKey: { x: string; y: string };
 	signedAt: string;

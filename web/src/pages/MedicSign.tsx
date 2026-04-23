@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+// TODO(ecdsa-migration): replace @zk-kit/eddsa-poseidon with wallet.signRaw() via the
+// Polkadot.js extension (type: "bytes"). Drop signMessage + derivePublicKey entirely.
 import { signMessage, derivePublicKey } from "@zk-kit/eddsa-poseidon";
 import { evmDevAccounts } from "../config/evm";
 import { devAccounts } from "../hooks/useAccount";
@@ -197,6 +199,12 @@ export default function MedicSign() {
 		}
 	}
 
+	// TODO(ecdsa-migration): replace this entire function with a wallet.signRaw() call.
+	// Use the connected Talisman/Polkadot.js account's Ethereum address; call
+	// web3FromAddress(account) then signer.signRaw({ address, data: toHex(recordCommit), type: "bytes" }).
+	// Store { medicAddress: account, medicSignature: hex } instead of BJJ sig components.
+	// NOTE: verify the exact EIP-191 prefix Talisman applies before wiring verification — probe with
+	// one sign+recover round trip to confirm the payload matches viem recoverAddress expectations.
 	function signWithWallet() {
 		if (!recordCommit) return;
 		const privKey = evmDevAccounts[selectedAccount].privateKey;

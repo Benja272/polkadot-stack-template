@@ -16,6 +16,7 @@ import { useChainStore } from "../store/chainStore";
 import FileDropZone from "../components/FileDropZone";
 import { type SignedRecord, type MedicalHeader, encryptRecordForBuyer } from "../utils/zk";
 
+// TODO(ecdsa-migration): replace medicPkX/Y + sigR8x/y/S with medicAddress: Address + medicSignature: `0x${string}`
 interface Listing {
 	id: bigint;
 	header: MedicalHeader;

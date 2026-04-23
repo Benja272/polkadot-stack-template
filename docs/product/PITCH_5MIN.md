@@ -130,10 +130,10 @@ What doesn't work yet:
   garbage ciphertext can reclaim their payment
 - **On-chain physician identity** — wire up People Chain credentials so buyers
   can trust the medic key without an off-chain check
-- **Re-enable on-chain verification** — revisit the Groth16 verifier using
-  pallet-revive host functions for BN254 pairing
 - **Pilot with real data** — synthetic today; partner with a research group
   to run a pilot on real, consented records
+- **Open the marketplace to AI buyers** — medical-AI teams as first-class
+  buyers with the same privacy and compensation flow
 
 own-your-medical-records | benja@terrace.fi
 

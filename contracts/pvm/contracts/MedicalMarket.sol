@@ -44,6 +44,8 @@ contract MedicalMarket {
 		uint256 headerCommit; // Poseidon8(encodeHeader(header))
 		uint256 bodyCommit; // Poseidon-chain over encrypted body plaintext[32]
 		uint256 piiCommit; // Poseidon-chain over encrypted PII plaintext[8] (patientId, dob)
+		// TODO(ecdsa-migration): replace BJJ fields with address medicAddress + bytes medicSignature (65 bytes)
+		// and drop Poseidon-based sig. Use ecrecover(keccak256(recordCommit), v, r, s) for on-chain verification.
 		// medic attestation (signs Poseidon3(headerCommit, bodyCommit, piiCommit))
 		uint256 medicPkX;
 		uint256 medicPkY;
@@ -148,6 +150,9 @@ contract MedicalMarket {
 	///         signature before placing an order. The piiCommit covers PII fields
 	///         (patientId, dateOfBirth) that are encrypted separately and never
 	///         exposed to the researcher.
+	// TODO(ecdsa-migration): replace (medicPkX, medicPkY, sigR8x, sigR8y, sigS) with
+	// (address medicAddress, bytes calldata medicSignature). Store medicAddress so
+	// MedicAuthority.isVerifiedMedic(medicAddress) can be enforced on-chain.
 	function createListing(
 		HeaderInput calldata header,
 		uint256 headerCommit,
@@ -328,6 +333,9 @@ contract MedicalMarket {
 	///         encrypted via ECDH + Poseidon stream cipher. No storage, no escrow —
 	///         pure event emission. Recipient's inbox reads RecordShared logs
 	///         filtered by their own doctorPkX (indexed).
+	// TODO(ecdsa-migration): replace BJJ (medicPkX, medicPkY, sigR8x, sigR8y, sigS) with
+	// (address medicAddress, bytes calldata medicSignature). Also swap doctor key to an Ethereum address
+	// so DoctorInbox can be indexed by address rather than BJJ point coordinates.
 	function shareRecord(
 		HeaderInput calldata header,
 		uint256 headerCommit,

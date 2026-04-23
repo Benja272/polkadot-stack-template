@@ -232,12 +232,17 @@ export default function AccountsPage() {
 
 	async function connectWallet(name: string) {
 		setConnectError(null);
-		// Retry up to 5 times with 800ms gaps — MV3 extension background workers go to
-		// sleep and take a moment to restore window.injectedWeb3[name].enable after the
-		// user clicks the extension icon.
+		// Retry up to 5 times with 800ms gaps. Each attempt has an 8-second timeout
+		// because MV3 extension .enable() can hang silently when the background worker
+		// is asleep — aborting and retrying wakes it and triggers the permission popup.
 		for (let attempt = 0; attempt < 5; attempt++) {
 			try {
-				const ext = await connectInjectedExtension(name);
+				const ext = await Promise.race([
+					connectInjectedExtension(name),
+					new Promise<never>((_, rej) =>
+						setTimeout(() => rej(new Error("timeout")), 8000),
+					),
+				]);
 				const accounts = ext.getAccounts();
 				setExtensionAccounts(accounts);
 				setConnectedWallet(name);
@@ -248,11 +253,16 @@ export default function AccountsPage() {
 				return;
 			} catch (e) {
 				const msg = e instanceof Error ? e.message : String(e);
-				if (!msg.includes("Unavailable") || attempt === 4) {
+				if (attempt === 4) {
 					console.error("Failed to connect wallet:", e);
 					setConnectError(
-						`Could not connect to ${walletNames[name] || name}. Click the Polkadot.js icon in your browser toolbar to wake it, then try again.`,
+						`Could not connect to ${walletNames[name] || name}. Click the ${walletNames[name] || name} icon in your browser toolbar to wake it, then try again.`,
 					);
+					return;
+				}
+				if (!msg.includes("Unavailable") && !msg.includes("timeout")) {
+					console.error("Failed to connect wallet:", e);
+					setConnectError(`Could not connect to ${walletNames[name] || name}: ${msg}`);
 					return;
 				}
 				await new Promise((r) => setTimeout(r, 800));
