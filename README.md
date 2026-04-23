@@ -64,11 +64,23 @@ cd contracts/pvm && npx hardhat vars set PRIVATE_KEY
 
 ## Known Gaps
 
-**Relaxed atomicity**: a patient could `fulfill()` with a garbage ciphertext and collect payment. The researcher detects the mismatch after decryption but has no on-chain reclaim path yet (Phase 5.3).
+**Relaxed atomicity**: a patient could `fulfill()` with a garbage ciphertext and collect payment. The researcher detects the mismatch after decryption (commitment chips render ✗) but has no on-chain reclaim path. A time-locked dispute window is the planned fix.
 
-**ZK dropped from on-chain verification**: Phase 5.1 built a complete Groth16 circuit (`circuits/`) binding record content, medic signature, and ECDH — but BN254 pairing on PVM hit ~800M gas weight on Paseo. Phase 5.2 moved verification off-chain. See `docs/product/ZKCP_DESIGN_OPTIONS.md`.
+**ZK verification is off-chain**: the circuit works and proofs generate in the browser — but on-chain verification was dropped (see Design Compromises). The buyer runs the checks themselves after decrypting.
 
-**No on-chain physician identity**: medic registry is a multisig-owned contract, not People Chain identity + Semaphore (Phase 6).
+**No on-chain physician identity**: medic registry is a multisig-owned contract. People Chain KnownGood identity integration is next.
+
+---
+
+## Design Compromises
+
+**The original design was a ZK contingent payment.** We built a complete Groth16 circuit (`circuits/medical_disclosure.circom`) — 12.8k constraints — that bound three properties in a single proof: the medic's EdDSA signature over the record commitment, the ECDH encryption binding the ciphertext to the buyer's key, and the Poseidon hash chain linking plaintext to the on-chain commitment. Browser proof generation worked at ~1.1s with snarkjs. The Verifier contract compiled and deployed.
+
+The bottleneck was on-chain verification: BN254 pairing on PVM consumed ~800M gas weight on Paseo, roughly 5–10× the block weight budget. There is no BN254 precompile on Asset Hub today. We filed this as an open question in `docs/product/ZK_ON_PVM_OPEN_QUESTION.md` and dropped the on-chain proof for now. The circuit, zkey, and Verifier are kept in the repo as a working reference for when the precompile lands.
+
+**Why Poseidon instead of keccak256**: the commitment scheme uses Poseidon hashing because it was designed to be verified inside the Groth16 circuit — it costs ~300 constraints vs ~27,000 for keccak256. Now that verification is off-chain, the commitment could migrate to keccak256 (tracked as `TODO(ecdsa-migration)` throughout the frontend). The migration would also eliminate the `@zk-kit` bundle (643 kB) which currently causes Bulletin Chain deployment issues.
+
+**Why multisig for medic authority**: a 2-of-3 pallet-multisig owns the `MedicAuthority` contract instead of a DAO or People Chain identity judgements. Simpler to bootstrap. The on-chain identity path requires the People Chain KnownGood integration which isn't done yet.
 
 ---
 
