@@ -15,6 +15,10 @@ type AnyApi = any;
 // ---------------------------------------------------------------------------
 
 export type AuthorityMethod = "addMedic" | "removeMedic" | "transferOwnership";
+/** Hint action for proposals that don't target MedicAuthority at all. */
+export type GovernanceAction = AuthorityMethod | "mapAccount";
+/** Zero-address placeholder used when hinting a proposal with no target. */
+export const NO_TARGET = "0x0000000000000000000000000000000000000000" as const;
 
 export interface Timepoint {
 	height: number;
@@ -97,6 +101,17 @@ export const medicAuthorityFullAbi = [
 		stateMutability: "nonpayable",
 	},
 	{
+		type: "function",
+		name: "getProposal",
+		inputs: [{ name: "callHash", type: "bytes32" }],
+		outputs: [
+			{ name: "action", type: "string" },
+			{ name: "target", type: "address" },
+			{ name: "proposedAt", type: "uint64" },
+		],
+		stateMutability: "view",
+	},
+	{
 		type: "event",
 		name: "ProposalHinted",
 		inputs: [
@@ -132,6 +147,17 @@ export function buildReviveInnerTx(api: AnyApi, contract: `0x${string}`, calldat
 		storage_deposit_limit: MAX_STORAGE_DEPOSIT,
 		data: Binary.fromHex(calldata),
 	});
+}
+
+/** Build the inner PAPI call a multisig proposal should dispatch, from the hint action. */
+export function buildInnerCallForAction(
+	api: AnyApi,
+	action: GovernanceAction,
+	target: `0x${string}`,
+	authorityAddr: `0x${string}`,
+) {
+	if (action === "mapAccount") return api.tx.Revive.map_account();
+	return buildReviveInnerTx(api, authorityAddr, encodeAuthorityCall(action, target));
 }
 
 /** Returns sorted signatories excluding the current signer. */
@@ -202,6 +228,16 @@ export async function propose(
 		timepoint: { height: result.blockNumber, index: result.txIndex },
 		txHash: result.txHash,
 	};
+}
+
+/**
+ * Recognize the pallet-multisig errors that mean "no matching entry in storage".
+ * Thrown when the approver's callHash doesn't map to a pending multisig (wrong
+ * action/target, or the proposal was executed/cancelled between read and submit).
+ */
+export function isStaleProposalError(err: unknown): boolean {
+	const msg = err instanceof Error ? err.message : String(err);
+	return /UnexpectedTimepoint|NotFound/.test(msg);
 }
 
 export async function approve(
@@ -346,7 +382,7 @@ export function buildHintProposalTx(
 	api: AnyApi,
 	contract: `0x${string}`,
 	callHash: `0x${string}`,
-	action: AuthorityMethod,
+	action: GovernanceAction,
 	target: `0x${string}`,
 ) {
 	const calldata = encodeFunctionData({
@@ -357,14 +393,49 @@ export function buildHintProposalTx(
 	return buildReviveInnerTx(api, contract, calldata);
 }
 
+/**
+ * Ensure the H160 derived from `signerEvmAddress` has a Revive OriginalAccount
+ * mapping. Without it, direct `Revive.call` txs revert with "account unmapped".
+ * Safe to call every time — returns early when the mapping already exists.
+ */
+export async function ensureMapped(
+	api: AnyApi,
+	signer: PolkadotSigner,
+	signerEvmAddress: `0x${string}`,
+): Promise<void> {
+	const h160 = new FixedSizeBinary(hexToBytes(signerEvmAddress)) as FixedSizeBinary<20>;
+	const existing = await api.query.Revive.OriginalAccount.getValue(h160);
+	if (existing) return;
+	await firstValueFrom(
+		api.tx.Revive.map_account()
+			.signSubmitAndWatch(signer)
+			.pipe(
+				filter(
+					(e): e is TxBestBlocksState & { found: true } =>
+						(e as TxBestBlocksState).type === "txBestBlocksState" &&
+						(e as { found?: boolean }).found === true,
+				),
+			),
+	);
+}
+
+/** True if the H160 has a pallet-revive OriginalAccount mapping. */
+export async function isMapped(api: AnyApi, h160: `0x${string}`): Promise<boolean> {
+	const key = new FixedSizeBinary(hexToBytes(h160)) as FixedSizeBinary<20>;
+	const existing = await api.query.Revive.OriginalAccount.getValue(key);
+	return Boolean(existing);
+}
+
 export async function submitHintProposal(
 	api: AnyApi,
 	signer: PolkadotSigner,
+	signerEvmAddress: `0x${string}`,
 	contract: `0x${string}`,
 	callHash: `0x${string}`,
-	action: AuthorityMethod,
+	action: GovernanceAction,
 	target: `0x${string}`,
 ): Promise<{ txHash: string }> {
+	await ensureMapped(api, signer, signerEvmAddress);
 	const tx = buildHintProposalTx(api, contract, callHash, action, target);
 
 	type FoundState = TxBestBlocksState & {
