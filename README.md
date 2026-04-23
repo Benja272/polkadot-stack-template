@@ -42,14 +42,13 @@ Requires Node.js 22.x and Rust stable.
 
 Frontend at http://127.0.0.1:5173. Bootstraps Alice/Bob/Charlie with PAS, deploys contracts, registers Alice as a verified medic.
 
-Demo flow: **Medic Sign** (Alice) → **Patient Dashboard** (Bob, list + fulfill) → **Researcher Buy** (Charlie, buy + decrypt).
-
 Deploy contracts to Paseo:
 
 ```bash
-cd contracts/pvm && npx hardhat vars set PRIVATE_KEY
-./scripts/deploy-paseo.sh
+cd contracts/pvm && npm run set-deployments
 ```
+
+Compiles contracts, derives the multisig address from `Council1.json` / `Council2.json` / `Medic.json` keystores, deploys both contracts, and writes `web/src/config/deployments.ts`. Requires `VITE_ACCOUNT_0_PK` in `web/.env.local` (funded via faucet).
 
 ---
 
