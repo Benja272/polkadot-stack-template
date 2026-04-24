@@ -1,10 +1,14 @@
-# Medical Data Marketplace
+# OwnMed — Medical Data Marketplace
 
 Patients sell medic-signed health records to researchers without revealing plaintext to anyone except the paying buyer.
 
 **Backend**: Solidity on PVM (pallet-revive, Asset Hub)  
 **Frontend**: React + TypeScript (PAPI + viem)  
 **Live**: https://own-your-medical-records42.dot.li
+
+[![CI — Web](https://github.com/Benja272/OwnMed-dapp/actions/workflows/ci-web.yml/badge.svg)](https://github.com/Benja272/OwnMed-dapp/actions/workflows/ci-web.yml)
+[![CI — PVM Contracts](https://github.com/Benja272/OwnMed-dapp/actions/workflows/ci-pvm.yml/badge.svg)](https://github.com/Benja272/OwnMed-dapp/actions/workflows/ci-pvm.yml)
+[![CI — Rust](https://github.com/Benja272/OwnMed-dapp/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/Benja272/OwnMed-dapp/actions/workflows/ci-rust.yml)
 
 ---
 

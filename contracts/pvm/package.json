@@ -1,6 +1,6 @@
 {
   "name": "ownmed-contracts",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "PVM deployment of the ProofOfExistence contract using Hardhat + resolc + viem",
   "engines": {
     "node": ">=22 <23",
