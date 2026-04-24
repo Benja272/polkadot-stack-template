@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { connectInjectedExtension, getInjectedExtensions } from "polkadot-api/pjs-signer";
-import { SpektrExtensionName } from "@novasamatech/product-sdk";
+import { injectSpektrExtension, SpektrExtensionName } from "@novasamatech/product-sdk";
 import { useChainStore } from "../store/chainStore";
 import {
 	devAccounts,
@@ -17,6 +17,17 @@ function shortenAddr(addr: string): string {
 function isLocalHost(): boolean {
 	if (typeof window === "undefined") return true;
 	return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+}
+
+function isInHost(): boolean {
+	if (typeof window === "undefined") return false;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	if ((window as any).__HOST_WEBVIEW_MARK__) return true;
+	try {
+		return window !== window.top;
+	} catch {
+		return true;
+	}
 }
 
 function mapExtAccount(acc: {
@@ -47,6 +58,7 @@ export default function WalletSelector() {
 	const [connectError, setConnectError] = useState<string | null>(null);
 	const extUnsubRef = useRef<(() => void) | null>(null);
 	const dropdownRef = useRef<HTMLDivElement>(null);
+	const spektrAccountsRef = useRef<AppAccount[]>([]);
 
 	useEffect(() => {
 		return () => {
@@ -93,8 +105,49 @@ export default function WalletSelector() {
 
 	const buildAccountList = useCallback((extensionAccounts: AppAccount[]): AppAccount[] => {
 		const base = isLocalHost() ? devAccounts : [];
-		return [...base, ...extensionAccounts];
+		return [...spektrAccountsRef.current, ...base, ...extensionAccounts];
 	}, []);
+
+	// Auto-inject and connect the Spektr (Nova Wallet / Spektr host) extension when
+	// the dApp is running inside a host shell (webview or iframe). The host injects
+	// window.injectedWeb3[SpektrExtensionName] asynchronously, so we retry up to 10×.
+	useEffect(() => {
+		if (!isInHost()) return;
+		let cancelled = false;
+		async function initSpektr() {
+			let injected = false;
+			for (let i = 0; i < 10; i++) {
+				if (await injectSpektrExtension()) {
+					injected = true;
+					break;
+				}
+				if (i < 9) await new Promise((r) => setTimeout(r, 500));
+			}
+			if (!injected || cancelled) return;
+			try {
+				const ext = await connectInjectedExtension(SpektrExtensionName);
+				if (cancelled) {
+					ext.disconnect();
+					return;
+				}
+				spektrAccountsRef.current = ext.getAccounts().map(mapExtAccount);
+				setAccounts(buildAccountList([]));
+				setSelectedIdx(0);
+				setConnectedWallet(SpektrExtensionName);
+				extUnsubRef.current?.();
+				extUnsubRef.current = ext.subscribe((updated) => {
+					spektrAccountsRef.current = updated.map(mapExtAccount);
+					setAccounts(buildAccountList([]));
+				});
+			} catch (e) {
+				console.error("[WalletSelector] Spektr connect failed:", e);
+			}
+		}
+		void initSpektr();
+		return () => {
+			cancelled = true;
+		};
+	}, [buildAccountList, setAccounts, setConnectedWallet, setSelectedIdx]);
 
 	const connectExtension = useCallback(
 		async (name: string) => {
@@ -128,6 +181,7 @@ export default function WalletSelector() {
 	const disconnectExtension = useCallback(() => {
 		extUnsubRef.current?.();
 		extUnsubRef.current = null;
+		spektrAccountsRef.current = [];
 		setConnectedWallet(null);
 		setAccounts(isLocalHost() ? devAccounts : []);
 		setSelectedIdx(0);
@@ -194,7 +248,9 @@ export default function WalletSelector() {
 						<>
 							<div className="flex items-center justify-between px-3.5 pt-1 pb-2">
 								<p className="text-[10px] text-text-tertiary uppercase tracking-widest">
-									{connectedWallet ?? "Extension"}
+									{connectedWallet === SpektrExtensionName
+										? "Host Wallet"
+										: (connectedWallet ?? "Extension")}
 								</p>
 								<button
 									onClick={disconnectExtension}

@@ -74,9 +74,15 @@ MEDIC (browser)                          PATIENT (browser)              ASSET HU
       |    = poseidon2(poseidon16(first16),     |                             |
       |                poseidon16(last16))      |                             |
       |                                        |                             |
+      | 3d. Encode PII + compute piiCommit     |                             |
+      |    encodePiiToFieldElements()           |                             |
+      |    → pii_plaintext[N]                  |                             |
+      |    piiCommit = HashChain(pii_plaintext) |                             |
+      |                                        |                             |
       | 4. Compute recordCommit + sign         |                             |
-      |    recordCommit = Poseidon2(            |                             |
-      |      headerCommit, bodyCommit)          |                             |
+      |    recordCommit = Poseidon3(            |                             |
+      |      headerCommit, bodyCommit,          |                             |
+      |      piiCommit)                         |                             |
       |    EdDSA-Poseidon(medicSk, recordCommit)|                             |
       |    → { R8x, R8y, S }                   |                             |
       |    medicPk = derivePublicKey(medicSk)  |                             |
@@ -84,15 +90,17 @@ MEDIC (browser)                          PATIENT (browser)              ASSET HU
       | 5. Export signed package               |                             |
       |----(header, body_plaintext[32], -----→ |                             |
       |     headerCommit, bodyCommit,          |                             |
-      |     recordCommit, medicPk, sig)         |                             |
+      |     piiCommit, recordCommit,           |                             |
+      |     medicPk, sig)                      |                             |
       |                                        |                             |
       |             6. Import + save to localStorage / Host KV               |
-      |                (key: "signed-pkg:<recordCommit>")                    |
+      |                (key: "signed-pkg:<ethRpcUrl>:<listingId>")           |
       |                                        |                             |
       |             7. createListing           |                             |
       |                (header,                |                             |
       |                 headerCommit,          |                             |
       |                 bodyCommit,            |                             |
+      |                 piiCommit,             |                             |
       |                 medicPkX, medicPkY,    |                             |
       |                 sigR8x, sigR8y, sigS,  |                             |
       |                 price) ----------------+------------------------→   |
@@ -101,12 +109,14 @@ MEDIC (browser)                          PATIENT (browser)              ASSET HU
 ```
 
 **What ends up on-chain**: `title`, `recordType`, `recordedAt`, `facility` (clear), `headerCommit`,
-`bodyCommit`, `medicPkX`, `medicPkY`, `sigR8x`, `sigR8y`, `sigS`, `price`, `patient`, `active=true`.
+`bodyCommit`, `piiCommit`, `medicPkX`, `medicPkY`, `sigR8x`, `sigR8y`, `sigS`, `price`, `patient`, `active=true`.
 The full medic signature is public — researchers can pre-verify "a known medic signed this" before
 placing a buy order by recomputing `headerCommit` from the clear header fields.
 
-**What stays off-chain**: `body_plaintext[32]` — stored in the patient's browser (localStorage or
-Host KV). Required at fulfill time to encrypt the record for the buyer.
+**What stays off-chain**: `body_plaintext[32]` and PII plaintext (patientId, dateOfBirth) — stored
+in the patient's browser (localStorage or Host KV). Required at fulfill time to encrypt the record
+for the buyer. PII is never encrypted into the ciphertext sent to researchers; only `body_plaintext`
+is.
 
 ---
 
@@ -168,15 +178,16 @@ PATIENT (browser)                              STATEMENT STORE    ASSET HUB
       | 2. Load signed package from local storage     |                 |
       |    body_plaintext[32], header, commits,        |                 |
       |    medicPk, sig                               |                 |
-      |    (stored as "signed-pkg:<recordCommit>")    |                 |
+      |    (stored as "signed-pkg:<ethRpcUrl>:<listingId>")              |
       |                                               |                 |
       | 3. ECDH + Poseidon stream cipher (off-chain)  |                 |
       |    ephSk       ← random BabyJubJub scalar     |                 |
       |    ephPk       ← mulPointEscalar(Base8, ephSk)|                 |
       |    sharedPt    ← mulPointEscalar(pkBuyer, ephSk)               |
+      |    nonce       = orderId                       |                 |
       |    ct[i]       ← (pt[i] + poseidon4([shX, shY, nonce, i]))     |
       |                    % BN254_R                  |                 |
-      |    ctHash      ← HashChain32(ct[32])          |                 |
+      |    ctHash      ← blake2b(ciphertextBytes, 32) |                 |
       |                                               |                 |
       | 4. Upload ciphertext to Statement Store       |                 |
       |---(ct[32] as 32×32 bytes) ----------------->  |                 |
@@ -212,7 +223,8 @@ RESEARCHER (browser)                           STATEMENT STORE    ASSET HUB
       |    ✓ Poseidon8(encodeHeader(header))           |                 |
       |        == listing.headerCommit ?              |                 |
       |    ✓ EdDSA.verify(medicPk, sig,               |                 |
-      |        Poseidon2(headerCommit, bodyCommit)) ? |                 |
+      |        Poseidon3(headerCommit, bodyCommit,    |                 |
+      |                  piiCommit)) ?               |                 |
       |    (shown as ✓/✗ chips in ResearcherBuy.tsx)  |                 |
 ```
 
@@ -290,13 +302,15 @@ PATIENT (browser)                              STATEMENT STORE    ASSET HUB
       |                                               |                 |
       | 3. ECDH + Poseidon stream cipher              |                 |
       |    (same as fulfill — target = doctorPk)      |                 |
-      |    ephSk, ephPk, ct[32], ctHash               |                 |
+      |    nonce = 0n  (fixed; no orderId here)       |                 |
+      |    ephSk, ephPk, ct[32]                       |                 |
+      |    ctHash ← blake2b(ciphertextBytes, 32)      |                 |
       |                                               |                 |
       | 4. Upload ciphertext to Statement Store       |                 |
       |---(ct[32]) ------------------------------>    |                 |
       |                                               |                 |
       | 5. shareRecord(header, headerCommit,          |                 |
-      |      bodyCommit, medicPk, sig,                |                 |
+      |      bodyCommit, piiCommit, medicPk, sig,     |                 |
       |      doctorPkX, doctorPkY,                    |                 |
       |      ephPkX, ephPkY, ctHash) -----------------+--------------→ |
       |    Contract: emits RecordShared (no storage,  |                 |
@@ -322,7 +336,8 @@ DOCTOR (browser)                               STATEMENT STORE    ASSET HUB
       | 4. Verify (same 3 checks as ResearcherBuy)    |                 |
       |    ✓ HashChain32(body) == bodyCommit          |                 |
       |    ✓ Poseidon8(encodeHeader) == headerCommit  |                 |
-      |    ✓ EdDSA.verify(medicPk, sig, recordCommit) |                 |
+      |    ✓ EdDSA.verify(medicPk, sig,               |                 |
+      |        Poseidon3(hC, bC, pC)) ?             |                 |
 ```
 
 **What ends up on-chain**: `RecordShared` event log only — `doctorPkX` (indexed), `doctorPkY`,
@@ -373,11 +388,13 @@ re-verify the medic badge may not notice.
 | `title`, `recordType`, `recordedAt`, `facility` | Asset Hub — Listing struct (public) | Anyone — browsable pre-purchase |
 | `headerCommit` (Poseidon8 of header) | Asset Hub — Listing struct (public) | Anyone |
 | `bodyCommit` (HashChain32 of body_plaintext[32]) | Asset Hub — Listing struct (public) | Anyone |
+| `piiCommit` (hash of PII fields) | Asset Hub — Listing struct (public) | Anyone — plaintext stays off-chain |
 | `medicPkX/Y` + EdDSA signature | Asset Hub — Listing struct (public) | Anyone — researcher pre-verifies before paying |
 | `pkBuyerX/Y` | Asset Hub — Order struct (public) | Anyone — pseudonymous |
-| `ephPk` + `ciphertextHash` | Asset Hub — Fulfillment struct (public) | Anyone — ciphertext still needs `skBuyer` to decrypt |
+| `ephPk` + `ciphertextHash` (blake2b) | Asset Hub — Fulfillment struct (public) | Anyone — ciphertext still needs `skBuyer` to decrypt |
 | Ciphertext bytes | Statement Store (off-chain) | Anyone who knows the hash — but encrypted |
 | Body plaintext | Patient's browser (localStorage / Host KV) | Patient only |
+| PII plaintext (patientId, dateOfBirth) | Patient's browser (localStorage / Host KV) | Patient only — never sent to researchers |
 | Buyer private key `skBuyer` | Researcher's browser | Researcher only |
 | Sale history | Asset Hub events (`SaleFulfilled`) | Anyone — buyer/patient addresses visible |
 

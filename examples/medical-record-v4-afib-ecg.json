@@ -1,0 +1,28 @@
+{
+  "header": {
+    "title": "12-Lead ECG — Atrial Fibrillation Screening (Feb 2026)",
+    "recordType": "ECG",
+    "recordedAt": 1740009600,
+    "facility": "Charité Universitätsmedizin — Berlin"
+  },
+  "pii": {
+    "patientId": "PAT-2025-0391",
+    "dateOfBirth": "1955-04-07"
+  },
+  "body": {
+    "bloodType": "B+",
+    "bmi": "26.1",
+    "condition": "atrial_fibrillation",
+    "country": "DE",
+    "diagnosedAt": "2024-08-30",
+    "heartRateBPM": "88",
+    "medicationApixaban": "true",
+    "medicationBisoprolol": "true",
+    "prInterval": "198",
+    "qrsComplex": "94",
+    "qtCorrected": "441",
+    "rhythmIrregular": "true",
+    "smoker": "false",
+    "strokeRiskCHA2DS2Score": "3"
+  }
+}

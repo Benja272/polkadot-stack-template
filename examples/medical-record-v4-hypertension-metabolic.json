@@ -1,0 +1,30 @@
+{
+  "header": {
+    "title": "Comprehensive Metabolic Panel (Mar 2026)",
+    "recordType": "Metabolic Panel",
+    "recordedAt": 1741564800,
+    "facility": "Helsinki University Hospital — Cardiovascular Unit"
+  },
+  "pii": {
+    "patientId": "PAT-2025-0183",
+    "dateOfBirth": "1968-09-22"
+  },
+  "body": {
+    "bloodType": "O-",
+    "bmi": "31.7",
+    "cholesterolHDL": "42",
+    "cholesterolLDL": "148",
+    "cholesterolTotal": "221",
+    "condition": "hypertension",
+    "country": "FI",
+    "creatinine": "1.02",
+    "diagnosedAt": "2021-11-14",
+    "diastolicBP": "95",
+    "glucoseFasting": "101",
+    "medicationAmlodipine": "true",
+    "medicationLisinopril": "true",
+    "smoker": "false",
+    "systolicBP": "152",
+    "triglycerides": "187"
+  }
+}

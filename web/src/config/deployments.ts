@@ -23,8 +23,8 @@ export const deployments: Record<NetworkPreset, NetworkDeployment> = {
 		},
 	},
 	paseo: {
-		medicalMarket: "0xf9bdefc23b6dc2a71a8a97d43ebb45e0c86a1ef9",
-		medicAuthority: "0x0c21366490d98141f04c00c31456aca803db758f",
+		medicalMarket: "0x2941a9740051e82b2a327a5d2bf1bf69b0d6da60",
+		medicAuthority: "0xb6098dc5e5d85c1fbeb9b91f2e261d019bf5e19c",
 		multisig: {
 			ss58: "5HQNAsn1bx9GnCY9aqM7syUH4He1nX2VR2gCyqj3PFmFCmqZ",
 			h160: "0xd9122bd9ceb311d1559cc9bd33f1df72a8b8fd91",

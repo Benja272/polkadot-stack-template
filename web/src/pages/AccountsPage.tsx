@@ -10,6 +10,7 @@ import {
 	connectInjectedExtension,
 	type InjectedPolkadotAccount,
 } from "polkadot-api/pjs-signer";
+import { weiToPlanckForUrl } from "../hooks/useReviveCall";
 import { injectSpektrExtension, SpektrExtensionName } from "@novasamatech/product-sdk";
 import { getSs58AddressInfo, Keccak256 } from "@polkadot-api/substrate-bindings";
 // QR-paired Nova Wallet session — hidden for now. Host shell does the pairing
@@ -58,11 +59,15 @@ interface AccountInfo {
 	nonce: number;
 }
 
-function formatBalance(planck: bigint): string {
-	const whole = planck / 1_000_000_000_000n;
-	const frac = planck % 1_000_000_000_000n;
+function formatBalance(planck: bigint, wsUrl: string): string {
+	// WEI_TO_PLANCK = 10^(18-nativeDecimals); nativeDecimals = 18 - log10(WEI_TO_PLANCK)
+	const weiPerPlanck = weiToPlanckForUrl(wsUrl);
+	const planckPerToken = 1_000_000_000_000_000_000n / weiPerPlanck;
+	const whole = planck / planckPerToken;
+	const frac = planck % planckPerToken;
 	if (frac === 0n) return whole.toLocaleString();
-	const fracStr = frac.toString().padStart(12, "0").replace(/0+$/, "");
+	const decimals = planckPerToken.toString().length - 1;
+	const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "");
 	return `${whole.toLocaleString()}.${fracStr}`;
 }
 
@@ -498,6 +503,7 @@ function AccountCard({
 	onFund: () => void;
 	connected: boolean;
 }) {
+	const wsUrl = useChainStore((s) => s.wsUrl);
 	return (
 		<div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-3 space-y-2">
 			<div className="flex items-center justify-between">
@@ -505,7 +511,7 @@ function AccountCard({
 				<div className="flex gap-2 items-center">
 					{info && (
 						<span className="text-xs text-text-tertiary font-mono">
-							{formatBalance(info.balance)} | nonce: {info.nonce}
+							{formatBalance(info.balance, wsUrl)} | nonce: {info.nonce}
 						</span>
 					)}
 					{connected && (

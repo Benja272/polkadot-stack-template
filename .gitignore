@@ -63,7 +63,8 @@ contracts/*/ignition/deployments/
 /package.json
 /package-lock.json
 /contracts/evm/
-/docs/pitch/
+/docs/pitch/output.pdf
+/docs/pitch/screenshots/
 
 # Symlinked product skills (machine-local references to ../product-skills)
 skills/bulletin-sdk

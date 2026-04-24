@@ -1,0 +1,31 @@
+{
+  "header": {
+    "title": "Lumbar Spine MRI — L4/L5 Disc Assessment (Jan 2026)",
+    "recordType": "MRI",
+    "recordedAt": 1736899200,
+    "facility": "Hospital Clínic de Barcelona — Radiology"
+  },
+  "pii": {
+    "patientId": "PAT-2024-0712",
+    "dateOfBirth": "1979-11-30"
+  },
+  "body": {
+    "affectedLevel": "L4-L5",
+    "bmi": "24.8",
+    "condition": "lumbar_disc_herniation",
+    "contrastUsed": "false",
+    "country": "ES",
+    "diagnosedAt": "2025-12-10",
+    "discBulgeGrade": "3",
+    "findingFocalProtrusion": "true",
+    "findingNerveRootCompression": "true",
+    "laterality": "right",
+    "medicationIbuprofen": "true",
+    "medicationPregabalin": "false",
+    "nerveConductionAbnormal": "false",
+    "painScaleVAS": "6",
+    "physioTherapyOngoing": "true",
+    "scannerTesla": "3.0",
+    "smoker": "false"
+  }
+}
