@@ -1,0 +1,29 @@
+{
+  "header": {
+    "title": "Germline BRCA1/BRCA2 SNP Array — Hereditary Cancer Panel (Nov 2025)",
+    "recordType": "Genome/SNP Array",
+    "recordedAt": 1732752000,
+    "facility": "Mayo Clinic — Center for Individualized Medicine"
+  },
+  "pii": {
+    "patientId": "PAT-2025-0056",
+    "dateOfBirth": "1990-06-18"
+  },
+  "body": {
+    "ancestry": "Ashkenazi_Jewish",
+    "arrayPlatformVersion": "ClinVar-v3",
+    "BRCA1Variant": "c.5266dupC",
+    "BRCA1PathogenicVariantDetected": "true",
+    "BRCA2PathogenicVariantDetected": "false",
+    "clinicalSignificance": "Pathogenic",
+    "condition": "hereditary_breast_ovarian_cancer_syndrome",
+    "country": "US",
+    "familyHistoryBreastCancer": "true",
+    "familyHistoryOvarianCancer": "true",
+    "geneticCounselingCompleted": "true",
+    "panelGenesAnalyzed": "BRCA1,BRCA2,PALB2,ATM,CHEK2",
+    "preventiveSurgeryDiscussed": "true",
+    "smoker": "false",
+    "surveillanceMammographyAnnual": "true"
+  }
+}

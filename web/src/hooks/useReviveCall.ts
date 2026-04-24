@@ -13,8 +13,13 @@ export const MAX_STORAGE_DEPOSIT = 100_000_000_000_000n;
 // Weight budget. fulfill() is now a small storage write + 2 ETH transfers; no
 // pairing math, so the previous 30 Bgas budget is overkill but harmless.
 export const CALL_WEIGHT = { ref_time: 5_000_000_000n, proof_size: 524_288n };
-// pallet-revive: 1 planck = 10^6 EVM wei (for 12-decimal chains).
-export const WEI_TO_PLANCK = 1_000_000n;
+
+// pallet-revive: WEI_TO_PLANCK = 10^(18 - nativeDecimals)
+// Local runtime (lib.rs): UNIT = 1_000_000_000_000 → 12 decimals → 10^6
+// Paseo / Polkadot Hub: tokenDecimals = 10 → 10^8
+export function weiToPlanckForUrl(wsUrl: string): bigint {
+	return /127\.0\.0\.1|localhost/.test(wsUrl) ? 1_000_000n : 100_000_000n;
+}
 
 /** Decode a hex string (with or without 0x prefix) to bytes. */
 export function hexToBytes(hex: string): Uint8Array {
@@ -55,6 +60,7 @@ export function useReviveCall(opts: UseReviveCallOptions): ReviveCall {
 
 	return useCallback<ReviveCall>(
 		async (functionName, args, valueWei = 0n) => {
+			const WEI_TO_PLANCK = weiToPlanckForUrl(wsUrl);
 			const calldata = encodeFunctionData({
 				abi: medicalMarketAbi,
 				functionName,

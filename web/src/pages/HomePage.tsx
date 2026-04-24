@@ -6,10 +6,6 @@ export default function HomePage() {
 			{/* Hero */}
 			<div className="relative space-y-4 pt-2">
 				<div className="bg-mesh absolute inset-0 pointer-events-none opacity-40 -z-10" />
-				<div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-polka-500/10 border border-polka-500/25 text-xs font-medium text-polka-400">
-					<span className="w-1.5 h-1.5 rounded-full bg-polka-500 animate-pulse-slow" />
-					Phase 5.2 · Live on Paseo Testnet
-				</div>
 				<h1 className="page-title max-w-2xl">
 					Own your medical records.{" "}
 					<span className="bg-gradient-to-r from-polka-400 to-polka-600 bg-clip-text text-transparent">
