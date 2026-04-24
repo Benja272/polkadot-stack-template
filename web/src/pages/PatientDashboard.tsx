@@ -120,7 +120,7 @@ export default function PatientDashboard() {
 		parseSignedRecordText(new TextDecoder().decode(bytes));
 	}, []);
 
-	const currentAccount = accounts[selectedAccountIndex] ?? accounts[0];
+	const currentAccount = accounts[selectedAccountIndex] ?? accounts[0] ?? null;
 
 	const reviveCall = useReviveCall({
 		account: currentAccount,
@@ -135,7 +135,7 @@ export default function PatientDashboard() {
 		} else {
 			setListings([]);
 		}
-	}, [contractAddress, ethRpcUrl, currentAccount.evmAddress]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [contractAddress, ethRpcUrl, currentAccount?.evmAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	async function verifyContract(): Promise<boolean> {
 		const client = getPublicClient(ethRpcUrl);
@@ -150,6 +150,7 @@ export default function PatientDashboard() {
 	}
 
 	async function loadListings() {
+		if (!currentAccount) return;
 		if (!contractAddress) {
 			setTxStatus("Error: Enter a contract address first");
 			return;
@@ -405,6 +406,12 @@ export default function PatientDashboard() {
 					after decryption.
 				</p>
 			</div>
+
+			{!currentAccount && (
+				<div className="rounded-lg border border-accent-yellow/30 bg-accent-yellow/[0.06] px-4 py-3 text-sm text-accent-yellow">
+					No wallet connected — use the wallet selector in the top-right to connect.
+				</div>
+			)}
 
 			{statementStoreAvailable === null && (
 				<div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-text-muted">
