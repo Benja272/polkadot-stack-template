@@ -1,5 +1,5 @@
 {
-  "name": "pvm-proof-of-existence",
+  "name": "ownmed-contracts",
   "version": "0.1.0",
   "description": "PVM deployment of the ProofOfExistence contract using Hardhat + resolc + viem",
   "engines": {

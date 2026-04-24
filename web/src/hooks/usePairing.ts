@@ -174,8 +174,6 @@ function createHostPappSigner(
 		publicKey,
 
 		signTx: async (callData, signedExtensions, _metadata, atBlockNumber) => {
-			console.log("[pairing] signTx callData length =", callData.length, "bytes");
-			console.log("[pairing] signTx callData hex =", toHex(callData));
 			const ext = signedExtensions;
 
 			// Extract values from PAPI's binary signed extensions.
@@ -217,10 +215,6 @@ function createHostPappSigner(
 				mode: undefined,
 			};
 
-			// Surface the full payload so we can confirm genesisHash, specVersion etc.
-			// match what PWallet expects (PWallet has a hard-coded CHAIN_ENDPOINTS map
-			// keyed by genesisHash — unknown hashes throw silently after Approve).
-			console.log("[pairing] signPayload →", payload);
 			const pending = session.signPayload(payload);
 			const timeout = new Promise<never>((_, reject) =>
 				setTimeout(
@@ -234,7 +228,6 @@ function createHostPappSigner(
 				),
 			);
 			const result = await Promise.race([pending, timeout]);
-			console.log("[pairing] signPayload ←", result);
 			if (result.isErr()) throw new Error(`Nova Wallet signing failed: ${result.error}`);
 			const { signedTransaction } = result.value;
 			if (!signedTransaction) {
