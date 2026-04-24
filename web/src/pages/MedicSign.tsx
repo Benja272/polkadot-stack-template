@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { toBytes } from "viem";
 import { evmDevAccounts } from "../config/evm";
-import { devAccounts } from "../hooks/useAccount";
 import FileDropZone from "../components/FileDropZone";
 import VerifiedBadge from "../components/VerifiedBadge";
 import {
@@ -302,7 +301,7 @@ export default function MedicSign() {
 					<span className="text-text-muted text-xs font-mono">
 						{evmDevAccounts[selectedAccount].account.address}
 					</span>
-					<VerifiedBadge address={devAccounts[selectedAccount].evmAddress} />
+					<VerifiedBadge address={evmDevAccounts[selectedAccount].account.address} />
 				</div>
 			</div>
 

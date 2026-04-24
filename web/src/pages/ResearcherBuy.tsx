@@ -135,7 +135,7 @@ export default function ResearcherBuy() {
 		}
 	}
 
-	const currentAccount = accounts[selectedAccountIndex] ?? accounts[0];
+	const currentAccount = accounts[selectedAccountIndex] ?? accounts[0] ?? null;
 
 	const reviveCall = useReviveCall({
 		account: currentAccount,
@@ -145,6 +145,7 @@ export default function ResearcherBuy() {
 	});
 
 	const loadAll = useCallback(async () => {
+		if (!currentAccount) return;
 		if (!contractAddress) {
 			setTxStatus("Error: Enter a contract address first");
 			return;
@@ -296,7 +297,7 @@ export default function ResearcherBuy() {
 		} finally {
 			setLoading(false);
 		}
-	}, [contractAddress, ethRpcUrl, currentAccount.evmAddress]);
+	}, [contractAddress, ethRpcUrl, currentAccount?.evmAddress]);
 
 	useEffect(() => {
 		if (contractAddress) {
@@ -309,7 +310,7 @@ export default function ResearcherBuy() {
 	}, [contractAddress, ethRpcUrl, loadAll]);
 
 	async function placeBuyOrder(listing: Listing, customAmountWei?: bigint) {
-		if (!contractAddress) return;
+		if (!contractAddress || !currentAccount) return;
 		try {
 			const amountWei = customAmountWei ?? listing.price;
 			setTxStatus("Placing order...");
@@ -339,7 +340,7 @@ export default function ResearcherBuy() {
 	}
 
 	async function decryptAndView(order: Order) {
-		if (!contractAddress) return;
+		if (!contractAddress || !currentAccount) return;
 		try {
 			setTxStatus("Reading fulfillment...");
 			const client = getPublicClient(ethRpcUrl);
@@ -459,6 +460,12 @@ export default function ResearcherBuy() {
 					decrypted via ECDH once the patient fulfills.
 				</p>
 			</div>
+
+			{!currentAccount && (
+				<div className="rounded-lg border border-accent-yellow/30 bg-accent-yellow/[0.06] px-4 py-3 text-sm text-accent-yellow">
+					No wallet connected — use the wallet selector in the top-right to connect.
+				</div>
+			)}
 
 			<div className="card space-y-4">
 				<div>
@@ -626,6 +633,7 @@ export default function ResearcherBuy() {
 											const offer = pendingOffers[listing.id.toString()];
 											const isMyOffer =
 												offer &&
+												currentAccount &&
 												offer.researcher.toLowerCase() ===
 													currentAccount.evmAddress.toLowerCase();
 											if (listing.pendingOrderId === 0n) return null;

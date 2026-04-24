@@ -32,7 +32,7 @@ export function hexToBytes(hex: string): Uint8Array {
 }
 
 export interface UseReviveCallOptions {
-	account: AppAccount;
+	account: AppAccount | null | undefined;
 	/** H160 hex address of the deployed MedicalMarket contract. */
 	contractAddress: string;
 	/** Substrate WebSocket RPC URL. */
@@ -60,6 +60,7 @@ export function useReviveCall(opts: UseReviveCallOptions): ReviveCall {
 
 	return useCallback<ReviveCall>(
 		async (functionName, args, valueWei = 0n) => {
+			if (!account) throw new Error("No account connected. Please connect a wallet first.");
 			const WEI_TO_PLANCK = weiToPlanckForUrl(wsUrl);
 			const calldata = encodeFunctionData({
 				abi: medicalMarketAbi,
